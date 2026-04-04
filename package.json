@@ -1,0 +1,39 @@
+{
+  "name": "@dishine/cookie-audit",
+  "version": "1.0.0",
+  "description": "Scan any website, get a categorized cookie inventory with GDPR compliance flags",
+  "type": "module",
+  "bin": {
+    "cookie-audit": "./bin/cli.js"
+  },
+  "main": "./src/index.js",
+  "scripts": {
+    "start": "node bin/cli.js",
+    "test": "node test/run.js"
+  },
+  "keywords": [
+    "cookies",
+    "gdpr",
+    "privacy",
+    "compliance",
+    "audit",
+    "scanner",
+    "eprivacy",
+    "ccpa",
+    "consent",
+    "tracking"
+  ],
+  "author": "diShine Digital Agency <hello@dishine.it> (https://dishine.it)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/diShine-digital-agency/cookie-audit.git"
+  },
+  "homepage": "https://github.com/diShine-digital-agency/cookie-audit",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "puppeteer": "^23.0.0"
+  }
+}
