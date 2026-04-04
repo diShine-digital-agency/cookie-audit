@@ -1,26 +1,26 @@
 # cookie-audit
 
-**Scan any website. Get a categorized cookie inventory with GDPR compliance flags.**
+**Find out exactly which cookies a website sets, who put them there, and whether any of it is GDPR-compliant.**
 
-One command, full picture: which cookies are set, who sets them, whether consent is obtained first, and what needs fixing.
+Most cookie consent setups are broken in ways nobody notices until a regulator does. Analytics cookies firing before consent. Marketing pixels with no opt-out. Session cookies missing basic security flags. This tool opens a site in a headless browser, captures every cookie (including the ones set by JavaScript and third-party scripts), classifies them, and tells you what's wrong.
 
-Built by [diShine Digital Agency](https://dishine.it)
+Built by [diShine](https://dishine.it)
 
 ---
 
-## What it does
+## How it works
 
-1. Opens the URL in a headless browser (Chromium)
-2. Captures every cookie — including those set by JavaScript and third-party scripts
-3. Classifies each cookie as **necessary**, **functional**, **analytics**, **marketing**, or **unknown** using a 150+ entry database
+1. Opens the URL in headless Chromium
+2. Captures every cookie -- first-party, third-party, JavaScript-set, all of them
+3. Classifies each one as **necessary**, **functional**, **analytics**, **marketing**, or **unknown** using a 150+ entry database of known cookies
 4. Checks GDPR/ePrivacy compliance: consent-before-tracking, Secure/HttpOnly flags, SameSite policy, excessive lifetimes, third-party exposure
 5. Outputs a graded report (terminal, JSON, CSV, or Markdown)
 
-Optional: click the consent banner, then re-scan to see which cookies are consent-gated vs. always-on.
+You can also tell it to click the consent banner first, then re-scan -- that way you see which cookies are consent-gated vs. which ones load regardless.
 
 ---
 
-## Quick Start
+## Quick start
 
 ```bash
 # Install globally
@@ -39,7 +39,7 @@ cookie-audit example.com -c
 cookie-audit urls.txt -f csv -o audit.csv
 ```
 
-Or run directly without installing:
+Or run it directly without installing:
 
 ```bash
 npx @dishine/cookie-audit example.com
@@ -47,13 +47,13 @@ npx @dishine/cookie-audit example.com
 
 ---
 
-## Output
+## What the output looks like
 
 ### Terminal (default)
 
 ```
   Cookie Audit Report
-  https://example.com — 4 Apr 2026, 14:30
+  https://example.com -- 4 Apr 2026, 14:30
 
   Compliance Score: C
 
@@ -82,12 +82,12 @@ npx @dishine/cookie-audit example.com
 
 ### Other formats
 
-| Format | Flag | Use case |
-|--------|------|----------|
-| `table` | `-f table` (default) | Quick terminal review |
-| `json` | `-f json` | Programmatic processing, dashboards |
-| `csv` | `-f csv` | Spreadsheet analysis, client handoff |
-| `markdown` | `-f markdown` | Reports, documentation, tickets |
+| Format | Flag | When to use it |
+|--------|------|----------------|
+| `table` | `-f table` (default) | quick terminal review |
+| `json` | `-f json` | feeding into dashboards or scripts |
+| `csv` | `-f csv` | spreadsheet analysis, handing off to a client |
+| `markdown` | `-f markdown` | reports, documentation, Jira/Linear tickets |
 
 ---
 
@@ -95,20 +95,20 @@ npx @dishine/cookie-audit example.com
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `-f, --format` | Output format: `table`, `json`, `csv`, `markdown` | `table` |
-| `-o, --output` | Save report to file | stdout |
-| `-w, --wait` | Wait time (ms) for page to fully load | `5000` |
-| `-c, --consent` | Click consent banner, then re-scan | off |
-| `--no-headless` | Show the browser window (debugging) | headless |
-| `-q, --quiet` | Suppress progress messages | off |
+| `-f, --format` | output format: `table`, `json`, `csv`, `markdown` | `table` |
+| `-o, --output` | save report to file | stdout |
+| `-w, --wait` | wait time (ms) for the page to fully load | `5000` |
+| `-c, --consent` | click consent banner, then re-scan | off |
+| `--no-headless` | show the browser window (useful for debugging) | headless |
+| `-q, --quiet` | suppress progress messages | off |
 
 ---
 
-## What it checks
+## What it actually checks
 
 ### Cookie classification
 
-Each cookie is matched against a built-in database of 150+ known cookies from:
+Each cookie is matched against a built-in database of 150+ known cookies. The database covers:
 
 - **Google** (Analytics, Ads, Tag Manager, reCAPTCHA)
 - **Meta** (Facebook Pixel, Instagram)
@@ -120,32 +120,32 @@ Each cookie is matched against a built-in database of 150+ known cookies from:
 - **Cloudflare**, **Intercom**, **Drift**
 - **Consent platforms** (Cookiebot, OneTrust, CookieYes, Complianz, Didomi, IAB TCF)
 
-Unknown cookies are classified by heuristic (name patterns, domain, lifetime).
+Cookies that don't match the database get classified by heuristic -- name patterns, domain, lifetime.
 
 ### Compliance checks
 
 | Check | Severity | What it flags |
 |-------|----------|---------------|
-| Non-essential cookies before consent | Critical | Analytics/marketing cookies set on page load without user consent |
-| No consent mechanism | Critical | Site sets tracking cookies but has no CMP banner |
-| Missing Secure flag | High | Cookies that can leak over HTTP |
-| Session cookies without HttpOnly | High | Auth/session cookies accessible via JavaScript |
-| SameSite=None without Secure | High | Cookies rejected by modern browsers |
-| Excessive lifetime (>13 months) | Medium | Violates CNIL/DPA guidelines |
-| Third-party cookies | Medium | Cross-site tracking exposure |
-| Missing SameSite attribute | Medium | CSRF vulnerability |
-| Unclassified cookies | Low | Need manual review for cookie policy |
-| Overly broad domain scope | Low | Cookie shared across all subdomains |
+| Non-essential cookies before consent | critical | analytics/marketing cookies set on page load without user consent |
+| No consent mechanism | critical | site sets tracking cookies but has no CMP banner at all |
+| Missing Secure flag | high | cookies that can leak over HTTP |
+| Session cookies without HttpOnly | high | auth/session cookies accessible via JavaScript (XSS risk) |
+| SameSite=None without Secure | high | cookies rejected by modern browsers |
+| Excessive lifetime (>13 months) | medium | violates CNIL/DPA guidelines |
+| Third-party cookies | medium | cross-site tracking exposure |
+| Missing SameSite attribute | medium | CSRF vulnerability |
+| Unclassified cookies | low | need manual review for cookie policy |
+| Overly broad domain scope | low | cookie shared across all subdomains unnecessarily |
 
 ### Consent mechanism detection
 
-Automatically detects: Cookiebot, OneTrust, CookieYes, Complianz, Quantcast, Didomi, Axeptio, Termly, IAB TCF, and generic cookie banners.
+It automatically detects Cookiebot, OneTrust, CookieYes, Complianz, Quantcast, Didomi, Axeptio, Termly, IAB TCF, and generic cookie banners.
 
 ---
 
 ## Batch scanning
 
-Create a text file with one URL per line:
+If you need to audit multiple URLs at once (e.g., a client's main site plus subdomains), create a text file with one URL per line:
 
 ```
 # urls.txt
@@ -178,11 +178,11 @@ console.log(formatMarkdown(report));
 
 | Code | Meaning |
 |------|---------|
-| `0` | Scan completed, no critical issues |
-| `1` | Critical compliance issues detected |
-| `2` | Fatal error (scan failed) |
+| `0` | scan completed, no critical issues |
+| `1` | critical compliance issues detected |
+| `2` | fatal error (scan failed) |
 
-Useful in CI/CD pipelines: `cookie-audit example.com || echo "Cookie compliance failed"`.
+These are useful in CI/CD pipelines: `cookie-audit example.com || echo "Cookie compliance failed"`.
 
 ---
 
@@ -195,6 +195,6 @@ Useful in CI/CD pipelines: `cookie-audit example.com || echo "Cookie compliance 
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT License -- see [LICENSE](LICENSE) for details.
 
-Copyright (c) 2026 [diShine Digital Agency](https://dishine.it)
+Copyright (c) 2026 [diShine](https://dishine.it)
