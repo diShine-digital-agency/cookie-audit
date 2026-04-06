@@ -19,7 +19,7 @@ We are committed to providing a welcoming and respectful environment for everyon
 
 ## Enforcement
 
-Instances of unacceptable behavior can be reported to **hello@dishine.it**. All reports will be reviewed and addressed.
+Instances of unacceptable behavior can be reported to **kevin@dishine.it**. All reports will be reviewed and addressed.
 
 ## Attribution
 
