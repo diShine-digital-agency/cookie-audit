@@ -17,7 +17,18 @@ const c = {
   cyan:    (s) => isColorEnabled ? `\x1b[36m${s}\x1b[0m` : s,
   gray:    (s) => isColorEnabled ? `\x1b[90m${s}\x1b[0m` : s,
   bgRed:   (s) => isColorEnabled ? `\x1b[41m\x1b[37m${s}\x1b[0m` : s,
+  bgGreen: (s) => isColorEnabled ? `\x1b[42m\x1b[30m${s}\x1b[0m` : s,
   bgYellow:(s) => isColorEnabled ? `\x1b[43m\x1b[30m${s}\x1b[0m` : s,
+  bgBlue:  (s) => isColorEnabled ? `\x1b[44m\x1b[37m${s}\x1b[0m` : s,
+  underline: (s) => isColorEnabled ? `\x1b[4m${s}\x1b[0m` : s,
+};
+
+// Unicode box characters for cleaner output
+const BOX = {
+  topLeft: "┌", topRight: "┐", bottomLeft: "└", bottomRight: "┘",
+  horizontal: "─", vertical: "│",
+  teeRight: "├", teeLeft: "┤",
+  block: "█", blockLight: "░",
 };
 
 // ── Table (terminal) ───────────────────────────────────────────────────
@@ -30,27 +41,34 @@ export function formatTable(report) {
   lines.push(c.bold("  Cookie Audit Report"));
   lines.push(c.dim(`  ${summary.url} — ${formatDate(summary.scannedAt)}`));
   if (summary.pageTitle) lines.push(c.dim(`  ${summary.pageTitle}`));
+  lines.push(c.dim(`  ${BOX.horizontal.repeat(60)}`));
   lines.push("");
 
-  // Compliance grade
-  const gradeColor = { A: c.green, "B+": c.green, B: c.blue, C: c.yellow, D: c.red, F: c.bgRed };
+  // Compliance grade (large format)
+  const gradeColor = { A: c.bgGreen, "B+": c.green, B: c.blue, C: c.yellow, D: c.red, F: c.bgRed };
+  const gradeEmoji = { A: "pass", "B+": "pass", B: "info", C: "warn", D: "warn", F: "fail" };
   const colorFn = gradeColor[summary.complianceScore] || c.red;
-  lines.push(`  Compliance Score: ${colorFn(c.bold(summary.complianceScore))}`);
+  const gradeStatus = gradeEmoji[summary.complianceScore] || "fail";
+  const gradePrefix = gradeStatus === "pass" ? c.green("PASS") : gradeStatus === "warn" ? c.yellow("WARN") : c.red("FAIL");
+  lines.push(`  Compliance: ${colorFn(c.bold(` ${summary.complianceScore} `))}  ${gradePrefix}`);
   lines.push("");
 
   // Summary box
   lines.push(c.bold("  Summary"));
-  lines.push(`  Total cookies: ${c.bold(String(summary.totalCookies))}  (${summary.firstParty} first-party, ${summary.thirdParty} third-party)`);
+  const firstPartyLabel = summary.firstParty === 1 ? "first-party" : "first-party";
+  const thirdPartyLabel = summary.thirdParty === 1 ? "third-party" : "third-party";
+  lines.push(`  Total cookies: ${c.bold(String(summary.totalCookies))}  (${summary.firstParty} ${firstPartyLabel}, ${summary.thirdParty} ${thirdPartyLabel})`);
   lines.push("");
 
-  // Category breakdown with bar chart
+  // Category breakdown with improved bar chart
   const maxCount = Math.max(...Object.values(summary.categories), 1);
   const barWidth = 20;
   const catColors = { necessary: c.green, functional: c.blue, analytics: c.cyan, marketing: c.magenta, unknown: c.yellow };
+  const catIcons = { necessary: "N", functional: "F", analytics: "A", marketing: "M", unknown: "?" };
   for (const [cat, count] of Object.entries(summary.categories)) {
     if (count === 0 && cat === "unknown") continue;
     const filled = Math.round((count / maxCount) * barWidth);
-    const bar = "#".repeat(filled) + " ".repeat(barWidth - filled);
+    const bar = BOX.block.repeat(filled) + BOX.blockLight.repeat(barWidth - filled);
     const pct = summary.totalCookies > 0 ? Math.round((count / summary.totalCookies) * 100) : 0;
     const colorize = catColors[cat] || c.gray;
     lines.push(`  ${pad(cat, 12)} ${colorize(bar)}  ${count} (${pct}%)`);
@@ -59,7 +77,7 @@ export function formatTable(report) {
 
   // Consent mechanism
   if (summary.consentMechanism) {
-    lines.push(`  Consent: ${c.green(summary.consentMechanism.join(", "))}`);
+    lines.push(`  Consent: ${c.green("Detected")} ${c.dim("(" + summary.consentMechanism.join(", ") + ")")}`);
   } else {
     lines.push(`  Consent: ${c.red("No consent mechanism detected")}`);
   }
@@ -67,30 +85,37 @@ export function formatTable(report) {
 
   // Issues
   if (issues.length > 0) {
-    lines.push(c.bold("  Issues"));
+    const issueCountStr = `${summary.issueCount.critical ? c.red(summary.issueCount.critical + " critical") + " " : ""}${summary.issueCount.high ? c.yellow(summary.issueCount.high + " high") + " " : ""}${summary.issueCount.medium ? c.blue(summary.issueCount.medium + " medium") + " " : ""}${summary.issueCount.low ? c.dim(summary.issueCount.low + " low") : ""}`.trim();
+    lines.push(c.bold(`  Issues (${issues.length})`) + `  ${issueCountStr}`);
     lines.push("");
     for (const issue of issues) {
       const sevLabel = formatSeverity(issue.severity);
-      lines.push(`  ${sevLabel}  ${issue.title}`);
-      lines.push(`  ${" ".repeat(10)}${c.dim(issue.detail)}`);
+      lines.push(`  ${sevLabel}  ${c.bold(issue.title)}`);
+      // Word-wrap detail text at ~70 chars for readability
+      const detailLines = wordWrap(issue.detail, 68);
+      for (const dl of detailLines) {
+        lines.push(`  ${" ".repeat(10)}${c.dim(dl)}`);
+      }
       if (issue.cookies.length <= 5) {
         lines.push(`  ${" ".repeat(10)}${c.dim("Cookies: " + issue.cookies.join(", "))}`);
       } else {
         lines.push(`  ${" ".repeat(10)}${c.dim("Cookies: " + issue.cookies.slice(0, 5).join(", ") + ` +${issue.cookies.length - 5} more`)}`);
       }
+      lines.push(`  ${" ".repeat(10)}${c.dim("Fix: " + issue.remediation)}`);
       lines.push("");
     }
   } else {
-    lines.push(c.green("  No issues found."));
+    lines.push(c.green("  No issues found — the site looks compliant."));
     lines.push("");
   }
 
   // Cookie table
+  lines.push(c.dim(`  ${BOX.horizontal.repeat(60)}`));
   lines.push(c.bold("  Cookie Details"));
   lines.push("");
   const header = `  ${pad("Name", 28)} ${pad("Category", 12)} ${pad("Provider", 22)} ${pad("Party", 5)} ${pad("Secure", 6)} ${pad("HttpOnly", 8)} ${pad("SameSite", 8)} ${pad("Days", 5)}`;
   lines.push(c.dim(header));
-  lines.push(c.dim("  " + "-".repeat(header.length - 2)));
+  lines.push(c.dim("  " + BOX.horizontal.repeat(98)));
 
   for (const cookie of cookies) {
     const catColor = catColors[cookie.category] || c.gray;
@@ -107,14 +132,21 @@ export function formatTable(report) {
   lines.push("");
 
   // Third-party domains
-  if (report.thirdPartyDomains.length > 0) {
+  if (report.thirdPartyDomains && report.thirdPartyDomains.length > 0) {
+    lines.push(c.dim(`  ${BOX.horizontal.repeat(60)}`));
     lines.push(c.bold(`  Third-Party Domains (${report.thirdPartyDomains.length})`));
+    lines.push("");
     const grouped = groupByTLD(report.thirdPartyDomains);
     for (const [tld, domains] of Object.entries(grouped)) {
       lines.push(`  ${c.dim(tld)}: ${domains.join(", ")}`);
     }
     lines.push("");
   }
+
+  // Footer
+  lines.push(c.dim(`  ${BOX.horizontal.repeat(60)}`));
+  lines.push(c.dim("  Generated by cookie-audit — https://github.com/diShine-digital-agency/cookie-audit"));
+  lines.push("");
 
   return lines.join("\n");
 }
@@ -264,6 +296,22 @@ function formatSeverity(sev) {
     case "low":      return c.dim("   LOW    ");
     default:         return pad(sev, 10);
   }
+}
+
+function wordWrap(text, maxWidth) {
+  const words = text.split(" ");
+  const lines = [];
+  let current = "";
+  for (const word of words) {
+    if (current.length + word.length + 1 > maxWidth && current.length > 0) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = current ? current + " " + word : word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
 }
 
 function groupByTLD(domains) {
