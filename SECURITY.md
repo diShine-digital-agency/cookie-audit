@@ -6,7 +6,7 @@ If you discover a security vulnerability in cookie-audit, please report it respo
 
 **Do not open a public issue.**
 
-Instead, email **hello@dishine.it** with:
+Instead, email **kevin@dishine.it** with:
 
 - A description of the vulnerability
 - Steps to reproduce
