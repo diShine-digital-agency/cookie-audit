@@ -89,11 +89,14 @@ async function main() {
   };
 
   let allReports = [];
+  const startTime = Date.now();
 
   for (const url of urls) {
     if (!flags.quiet && urls.length > 1) {
       console.log(`  Scanning: ${url}`);
     }
+
+    const urlStart = Date.now();
 
     try {
       // 1. Scan
@@ -109,6 +112,13 @@ async function main() {
       // 3. Analyze
       const report = analyze(scanResult, classified);
       allReports.push(report);
+
+      if (!flags.quiet) {
+        const duration = ((Date.now() - urlStart) / 1000).toFixed(1);
+        const cookieCount = report.summary.totalCookies;
+        const score = report.summary.complianceScore;
+        console.log(`  Done: ${cookieCount} cookies found, score ${score} (${duration}s)`);
+      }
 
     } catch (err) {
       console.error(`  Error scanning ${url}: ${err.message}`);
@@ -135,10 +145,19 @@ async function main() {
     const outPath = resolve(flags.output);
     writeFileSync(outPath, stripAnsi(output), "utf-8");
     if (!flags.quiet) {
+      const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.log("");
       console.log(`  Report saved to: ${outPath}`);
+      console.log(`  Total scan time: ${totalDuration}s`);
+      console.log("");
     }
   } else {
     console.log(output);
+    if (!flags.quiet && urls.length > 1) {
+      const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.log(`  Total scan time: ${totalDuration}s`);
+      console.log("");
+    }
   }
 
   // Exit with non-zero if critical issues found
