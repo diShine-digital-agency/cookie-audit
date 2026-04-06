@@ -44,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- README.md rewritten: accurate cookie count, clearer structure, removed marketing language, added links to new docs
+- README.md rewritten: accurate cookie count, clearer structure, added links to new docs
 - GUIDE.md updated: fixed incorrect API reference (`report.score` → `report.summary.complianceScore`), updated cookie count, tighter language
 
 ### Fixed
