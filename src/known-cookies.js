@@ -177,7 +177,6 @@ export const EXACT = {
 
   // ── PostHog ───────────────────────────────────────────────────────────
   ph_phc:       { category: "analytics", provider: "PostHog", description: "User identity", maxDays: 365 },
-  "distinct_id":  { category: "analytics", provider: "PostHog", description: "Distinct user ID", maxDays: 365 },
 
   // ── Pendo ─────────────────────────────────────────────────────────────
   _pendo_visitorId: { category: "analytics", provider: "Pendo", description: "Visitor ID", maxDays: 730 },

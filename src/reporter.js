@@ -55,9 +55,7 @@ export function formatTable(report) {
 
   // Summary box
   lines.push(c.bold("  Summary"));
-  const firstPartyLabel = summary.firstParty === 1 ? "first-party" : "first-party";
-  const thirdPartyLabel = summary.thirdParty === 1 ? "third-party" : "third-party";
-  lines.push(`  Total cookies: ${c.bold(String(summary.totalCookies))}  (${summary.firstParty} ${firstPartyLabel}, ${summary.thirdParty} ${thirdPartyLabel})`);
+  lines.push(`  Total cookies: ${c.bold(String(summary.totalCookies))}  (${summary.firstParty} first-party, ${summary.thirdParty} third-party)`);
   lines.push("");
 
   // Category breakdown with improved bar chart
