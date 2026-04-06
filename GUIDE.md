@@ -1,8 +1,6 @@
 # cookie-audit — User Guide
 
-**A step-by-step guide to scanning websites for cookies and GDPR compliance.**
-
-You don't need to be a developer to use cookie-audit. This guide walks you through everything.
+A step-by-step guide to scanning websites for cookies and GDPR compliance.
 
 ---
 
@@ -30,7 +28,7 @@ cookie-audit scans any website and tells you:
 - **Which cookies are set** — name, domain, how long they last, who sets them
 - **What category each cookie belongs to** — necessary, functional, analytics, marketing, or unknown
 - **Whether the site is GDPR-compliant** — are tracking cookies set before consent? Is there a cookie banner? Are cookie flags secure?
-- **What needs fixing** — specific issues with severity levels and what to change
+- **What needs fixing** — specific issues with severity levels and remediation steps
 
 ### Why does this matter?
 
@@ -47,80 +45,71 @@ cookie-audit automates the compliance check that would otherwise take hours of m
 
 ## 2. Installation
 
-### What you need
+### Requirements
 
-- **Node.js 18 or later** installed on your computer
-  - Check: open a terminal and run `node --version`
-  - If not installed: download from [nodejs.org](https://nodejs.org) (choose the LTS version)
+- **Node.js 18 or later**
+  - Check: `node --version`
+  - If not installed: download from [nodejs.org](https://nodejs.org) (LTS version)
 
 ### Install cookie-audit
-
-Open your terminal (Terminal on macOS, PowerShell or Command Prompt on Windows) and run:
 
 ```bash
 npm install -g @dishine/cookie-audit
 ```
 
-This installs cookie-audit globally so you can use it from anywhere.
-
-> **First run note:** The first time you run the tool, it will download Chromium (~300 MB). This is the browser engine used to scan websites. It only happens once.
+> **Note:** The first run downloads Chromium (~300 MB). This only happens once.
 
 ### Alternative: Run without installing
-
-If you don't want to install it permanently:
 
 ```bash
 npx @dishine/cookie-audit example.com
 ```
 
-This downloads and runs it in one step.
-
 ---
 
 ## 3. Your First Scan
-
-### Basic scan
 
 ```bash
 cookie-audit example.com
 ```
 
-That's it. The tool will:
-1. Open the website in a hidden browser (headless Chromium)
-2. Wait for the page to fully load (5 seconds by default)
-3. Capture every cookie set by the page
-4. Classify each cookie using a built-in database of 150+ known cookies
-5. Check for GDPR compliance issues
-6. Print the report in your terminal
+The tool will:
+1. Open the website in headless Chromium
+2. Wait for the page to load (5 seconds by default)
+3. Capture every cookie
+4. Classify each cookie using a 470+ entry database
+5. Run compliance checks
+6. Print the report
 
-### What you'll see
+### Example output
 
 ```
   Cookie Audit Report
   https://example.com — 4 Apr 2026, 14:30
+  ────────────────────────────────────────────────────────────
 
-  Compliance Score: B
+  Compliance:  B   PASS
 
   Summary
   Total cookies: 8  (5 first-party, 3 third-party)
 
-  necessary    ######              3 (38%)
-  analytics    ########            4 (50%)
-  marketing    ##                  1 (13%)
+  necessary    ██████████░░░░░░░░░░  3 (38%)
+  analytics    ████████████████████  4 (50%)
+  marketing    ████░░░░░░░░░░░░░░░░  1 (13%)
 
-  Consent: OneTrust detected
+  Consent: Detected (onetrust)
 
-  Issues (2)
-    HIGH     Non-essential cookies set before user consent
-             3 analytics cookies detected on initial page load
-             without user interaction...
-    MEDIUM   Missing HttpOnly flag on session cookie
-             The cookie "session_id" is accessible via JavaScript...
+  Issues (2)  1 high 1 medium
+
+   HIGH       Missing Secure flag on 2 cookies
+              ...
+   MEDIUM     Excessive cookie lifetime on _ga (730 days)
+              ...
 
   Cookie Details
   Name             Category     Provider            Party  Secure HttpOnly SameSite  Days
-  ─────────────────────────────────────────────────────────────────────────────────────────
-  __cf_bm          necessary    Cloudflare          1st    Y      Y        None      1
+  ──────────────────────────────────────────────────────────────────────────────────────
+  __cf_bm          necessary    Cloudflare          1st    Y      Y        Lax       1
   _ga              analytics    Google Analytics     1st    Y      N        Lax       730
   _gid             analytics    Google Analytics     1st    Y      N        Lax       1
   ...
@@ -132,260 +121,191 @@ That's it. The tool will:
 
 ### Compliance Score
 
-The overall grade from **A** (excellent) to **F** (serious issues):
-
-| Grade | What it means |
-|-------|--------------|
+| Grade | Meaning |
+|-------|---------|
 | **A** | No compliance issues detected |
-| **B** | Minor issues only (low severity) |
-| **C** | Some medium-severity issues to address |
-| **D** | High-severity issues present |
+| **B+** | Minor issues only (low severity) |
+| **B** | Medium-severity issues |
+| **C** | High-severity issues present |
+| **D** | Multiple high-severity issues |
 | **F** | Critical compliance violations |
 
 ### Cookie Categories
 
-| Category | Color | What it means |
-|----------|-------|---------------|
-| **Necessary** | Green | Essential for the site to function (login sessions, security tokens, load balancing). Exempt from consent. |
-| **Functional** | Blue | Enhance user experience (language preferences, UI settings). Usually require consent. |
-| **Analytics** | Yellow | Track user behavior (Google Analytics, Hotjar, Mixpanel). Require consent. |
-| **Marketing** | Red | Used for advertising and retargeting (Facebook Pixel, Google Ads, LinkedIn). Require consent. |
-| **Unknown** | Gray | Not in the known database. Need manual review — could be anything. |
+| Category | Meaning |
+|----------|---------|
+| **Necessary** | Essential for the site to function (sessions, security tokens, load balancing). Exempt from consent. |
+| **Functional** | User preferences, UI settings. Usually require consent. |
+| **Analytics** | Usage tracking (Google Analytics, Hotjar, Mixpanel). Require consent. |
+| **Marketing** | Advertising and retargeting (Facebook Pixel, Google Ads, LinkedIn). Require consent. |
+| **Unknown** | Not in the database. Needs manual review. |
 
-### Issue Severity Levels
+### Issue Severity
 
-| Severity | What it means | Action needed |
-|----------|--------------|---------------|
+| Severity | Meaning | Action |
+|----------|---------|--------|
 | **CRITICAL** | Likely violates GDPR. Could result in fines. | Fix immediately |
 | **HIGH** | Significant security or compliance risk. | Fix before next release |
-| **MEDIUM** | Best practice violation. May cause issues. | Plan to fix soon |
+| **MEDIUM** | Best practice violation. | Plan to fix soon |
 | **LOW** | Minor improvement opportunity. | Fix when convenient |
 
-### Common Issues Explained
+### Common Issues
 
 **"Non-essential cookies set before consent"** (Critical)
-- Analytics or marketing cookies are loaded when the page opens, before the user clicks "Accept" on the cookie banner
-- This is the most common GDPR violation
-- Fix: Configure your tag manager to fire analytics/marketing tags only after consent is given
+- Analytics or marketing cookies load before the user clicks "Accept"
+- Fix: Configure your tag manager to fire tags only after consent
 
 **"No consent mechanism detected"** (Critical)
-- The site sets tracking cookies but has no cookie banner
-- Fix: Install a Consent Management Platform (Cookiebot, OneTrust, CookieYes, etc.)
+- Tracking cookies present but no cookie banner
+- Fix: Install a CMP (Cookiebot, OneTrust, CookieYes, etc.)
 
 **"Missing Secure flag"** (High)
-- A cookie can be sent over unencrypted HTTP connections
-- Fix: Add the `Secure` attribute to the cookie
+- Cookie can be sent over unencrypted HTTP
+- Fix: Add the `Secure` attribute
 
-**"Missing HttpOnly flag on session cookie"** (High)
-- A session cookie can be accessed by JavaScript, making it vulnerable to XSS attacks
-- Fix: Add the `HttpOnly` attribute to the cookie
+**"Session cookies without HttpOnly"** (High)
+- Session cookie accessible via JavaScript (XSS risk)
+- Fix: Add the `HttpOnly` attribute
 
 **"Excessive cookie lifetime"** (Medium)
-- A cookie lasts more than 13 months, which exceeds CNIL/DPA guidelines
-- Fix: Reduce the `max-age` or `expires` to 13 months or less
+- Cookie lasts more than 13 months (exceeds CNIL/DPA guidelines)
+- Fix: Reduce `max-age` or `expires` to 13 months or less
 
 ---
 
 ## 5. Saving Reports
 
-### Save to a file
-
 ```bash
-# Save as Markdown (great for client reports)
+# Markdown (client reports)
 cookie-audit example.com -f markdown -o report.md
 
-# Save as JSON (for processing in other tools)
+# JSON (scripts and dashboards)
 cookie-audit example.com -f json -o audit.json
 
-# Save as CSV (for spreadsheets)
+# CSV (spreadsheets)
 cookie-audit example.com -f csv -o cookies.csv
 ```
 
-### Output format comparison
-
-| Format | Best for | Opens with |
-|--------|----------|------------|
-| **table** (default) | Quick review in terminal | Terminal only |
-| **markdown** | Client reports, documentation | Any text editor, Notion, GitHub |
-| **json** | Processing in dashboards or scripts | Code editors, jq |
-| **csv** | Spreadsheet analysis, client handoff | Excel, Google Sheets |
-
-### Example: Creating a client-ready report
-
-```bash
-cookie-audit clientsite.com -f markdown -o "ClientName - Cookie Audit - 2026-04-04.md"
-```
-
-Then open the `.md` file, copy-paste into Google Docs or Word, add your agency branding, and send to the client.
+| Format | Best for |
+|--------|----------|
+| **table** (default) | Terminal review |
+| **markdown** | Client reports, documentation, Notion, GitHub |
+| **json** | Dashboards, scripts, jq |
+| **csv** | Excel, Google Sheets |
 
 ---
 
 ## 6. Scanning with Consent Interaction
 
-The `-c` (consent) flag tells cookie-audit to:
+The `-c` flag tells cookie-audit to:
 
-1. **First:** Scan the page as-is (before any user interaction) — records which cookies are loaded immediately
-2. **Then:** Click the consent/accept button on the cookie banner
-3. **Finally:** Re-scan to see which additional cookies appear after consent
-
-This shows you exactly which cookies are **consent-gated** vs. **always-on**.
+1. Scan the page as-is (before any user interaction)
+2. Click the consent/accept button
+3. Re-scan to capture cookies set after consent
 
 ```bash
 cookie-audit example.com -c
 ```
 
-### What consent banners does it recognize?
+### Supported consent banners
 
-cookie-audit can automatically click "Accept" buttons from:
-
-- Cookiebot
-- OneTrust
-- CookieYes
-- Complianz
-- Quantcast Choice
-- Didomi
-- Axeptio
-- Termly
-- IAB TCF-compliant banners
-- Generic "Accept" / "Accept all" buttons
+Cookiebot, OneTrust, CookieYes, Complianz, Quantcast, Didomi, Axeptio, Termly, IAB TCF, and generic "Accept" buttons (multi-language: English, Italian, French, German, Spanish).
 
 ### Why use consent scanning?
 
-Without `-c`, you only see cookies set on initial page load. With `-c`, you get the full picture:
-- Cookies **before** consent = should only be "necessary" cookies
-- Cookies **after** consent = can include analytics and marketing
-
-If analytics/marketing cookies appear **before** consent, that's a GDPR violation.
+- Cookies **before** consent should only be "necessary"
+- Cookies **after** consent can include analytics and marketing
+- If analytics/marketing cookies appear before consent, that's a GDPR violation
 
 ---
 
 ## 7. Batch Scanning Multiple Sites
 
-### Scan multiple URLs from the command line
+### From the command line
 
 ```bash
-cookie-audit site1.com site2.com site3.com -f json -o all-results.json
+cookie-audit site1.com site2.com site3.com -f json -o results.json
 ```
 
-### Scan from a file
-
-Create a text file with one URL per line:
+### From a file
 
 ```
 # urls.txt
 https://example.com
 https://shop.example.com
 https://blog.example.com
-https://landing.example.com
 ```
-
-Then run:
 
 ```bash
-cookie-audit urls.txt -f csv -o full-audit.csv
+cookie-audit urls.txt -f csv -o audit.csv
 ```
 
-Lines starting with `#` are treated as comments and ignored.
-
-### Batch scan use cases
-
-- **Multi-domain audit:** Scan all domains belonging to a single client
-- **Pre-launch checklist:** Scan staging, production, and all subdomains
-- **Competitor analysis:** Compare cookie practices across competitors
-- **Agency portfolio review:** Monthly compliance check across all client sites
+Lines starting with `#` are comments.
 
 ---
 
 ## 8. All Options Explained
 
-| Flag | Long form | What it does | Default |
+| Flag | Long form | Description | Default |
 |------|-----------|-------------|---------|
 | `-f` | `--format` | Output format: `table`, `json`, `csv`, `markdown` | `table` |
-| `-o` | `--output` | Save to a file (e.g., `-o report.md`) | Print to screen |
-| `-w` | `--wait` | How long to wait for the page to load (milliseconds) | `5000` (5 sec) |
-| `-c` | `--consent` | Click the consent banner and re-scan | Off |
-| | `--no-headless` | Show the browser window (useful for debugging) | Hidden |
-| `-q` | `--quiet` | Don't show progress messages | Off |
-| `-h` | `--help` | Show help text | |
-| `-v` | `--version` | Show version number | |
-
-### Examples
-
-```bash
-# Basic scan
-cookie-audit example.com
-
-# Save as Markdown
-cookie-audit example.com -f markdown -o report.md
-
-# Scan with consent, longer wait for slow sites
-cookie-audit example.com -c -w 10000
-
-# Quiet mode (only show the report, no progress messages)
-cookie-audit example.com -q
-
-# Debug mode (watch the browser)
-cookie-audit example.com --no-headless
-
-# Batch scan, CSV output
-cookie-audit urls.txt -f csv -o audit.csv
-```
+| `-o` | `--output` | Save to file | stdout |
+| `-w` | `--wait` | Page load wait time (ms) | `5000` |
+| `-c` | `--consent` | Click consent banner, re-scan | Off |
+| | `--no-headless` | Show browser window | Hidden |
+| `-q` | `--quiet` | Suppress progress messages | Off |
+| `-h` | `--help` | Show help | |
+| `-v` | `--version` | Show version | |
 
 ---
 
 ## 9. Using in Code (Programmatic)
 
-If you're building your own tools or dashboards, you can use cookie-audit as a library:
-
 ```javascript
 import { scan, classify, analyze, formatMarkdown } from "@dishine/cookie-audit";
 
-// Scan a website
 const result = await scan("https://example.com", { waitMs: 5000 });
-
-// Classify the cookies
 const classified = classify(result.cookiesBeforeConsent);
-
-// Analyze compliance
 const report = analyze(result, classified);
 
 // Output as Markdown
 console.log(formatMarkdown(report));
 
-// Or access raw data
-console.log(report.score);        // "B"
-console.log(report.issues);       // Array of issues
-console.log(report.cookies);      // Array of classified cookies
+// Access structured data
+console.log(report.summary.complianceScore); // "B"
+console.log(report.summary.totalCookies);    // 8
+console.log(report.summary.issueCount);      // { critical: 0, high: 1, medium: 1, low: 0 }
+console.log(report.issues);                  // Array of issues with remediation steps
+console.log(report.cookies);                 // Array of classified cookies
 ```
 
 ---
 
 ## 10. CI/CD Integration
 
-cookie-audit returns different exit codes based on the scan result:
+Exit codes:
 
-| Exit code | Meaning |
-|-----------|---------|
+| Code | Meaning |
+|------|---------|
 | `0` | No critical compliance issues |
 | `1` | Critical issues found |
 | `2` | Scan failed (network error, invalid URL) |
 
-### Example: GitHub Actions
+### GitHub Actions
 
 ```yaml
 - name: Cookie compliance check
   run: |
     npx @dishine/cookie-audit https://staging.example.com -q
-    # Fails the build if critical issues are found (exit code 1)
 ```
 
-### Example: Pre-deploy script
+### Pre-deploy script
 
 ```bash
 #!/bin/bash
 cookie-audit "$STAGING_URL" -q
 if [ $? -eq 1 ]; then
-  echo "Cookie compliance check FAILED. Fix issues before deploying."
+  echo "Cookie compliance check FAILED."
   exit 1
 fi
 echo "Cookie compliance OK."
@@ -397,45 +317,43 @@ echo "Cookie compliance OK."
 
 ### "Chromium not found" or download errors
 
-**Cause:** Puppeteer couldn't download Chromium.
-**Fix:** Run the following to trigger the download manually:
 ```bash
 npx puppeteer browsers install chrome
 ```
 
 ### "Navigation timeout" error
 
-**Cause:** The website took too long to load (default: 30 seconds).
-**Fix:** Try with a longer wait time:
+The website took too long to load. Increase the wait time:
+
 ```bash
 cookie-audit example.com -w 15000
 ```
 
 ### "Execution context was destroyed" warning
 
-**Cause:** The website redirected aggressively during scanning.
-**This is not a bug** — the scan still captures cookies before the redirect. Results are usually valid.
+The website redirected during scanning. Results are usually still valid.
 
 ### No cookies detected
 
-**Possible causes:**
-- The site genuinely sets no cookies (rare but possible)
-- The site requires user interaction before setting cookies
+Possible causes:
+- The site sets no cookies
+- The site requires interaction before setting cookies
 - The site blocks headless browsers
 
-**Fix:** Try with `--no-headless` to see what's happening:
+Try visible mode:
+
 ```bash
 cookie-audit example.com --no-headless
 ```
 
-### "Permission denied" on macOS
+### Permission denied on macOS
 
-**Fix:**
 ```bash
 sudo npm install -g @dishine/cookie-audit
 ```
 
-Or use `npx` instead (no global install needed):
+Or use npx (no global install):
+
 ```bash
 npx @dishine/cookie-audit example.com
 ```
@@ -444,24 +362,24 @@ npx @dishine/cookie-audit example.com
 
 ## 12. FAQ
 
-**Q: Does this tool actually visit the website?**
-A: Yes. It opens the site in a real Chromium browser (hidden by default). This is the only way to capture all cookies, including those set by JavaScript and third-party scripts.
+**Does this tool visit the website?**
+Yes. It opens the site in a real Chromium browser (hidden by default). This is the only way to capture all cookies, including those set by JavaScript.
 
-**Q: Is it legal to scan any website?**
-A: Scanning a website by visiting it (as cookie-audit does) is equivalent to visiting it in a regular browser. This is generally legal. However, don't use it to scan sites you don't own or have permission to audit in jurisdictions where this may be restricted.
+**Is it legal to scan any website?**
+Scanning by visiting a website is equivalent to visiting it in a regular browser. This is generally legal, but only scan sites you own or have permission to audit.
 
-**Q: How accurate is the cookie classification?**
-A: The built-in database covers 150+ of the most common cookies from Google, Meta, LinkedIn, Microsoft, and many other platforms. Unknown cookies are classified by heuristic (name patterns, domain, lifetime). For a production audit, manually review any "unknown" cookies.
+**How accurate is the classification?**
+The database covers 470+ cookies from Google, Meta, LinkedIn, Microsoft, Adobe, and many other platforms. Unknown cookies are classified by heuristic. For production audits, manually review any "unknown" cookies.
 
-**Q: Does it check for cookie consent compliance in non-EU countries?**
-A: The checks are primarily based on GDPR and ePrivacy Directive (EU). However, many of the same principles apply to CCPA (California), LGPD (Brazil), POPIA (South Africa), and similar laws. The security flags (Secure, HttpOnly, SameSite) are universal best practices.
+**Does it support non-EU compliance?**
+The checks are primarily GDPR/ePrivacy, but the same principles apply to CCPA (California), LGPD (Brazil), POPIA (South Africa), and similar laws. Security flags (Secure, HttpOnly, SameSite) are universal best practices.
 
-**Q: Can I add custom cookies to the database?**
-A: Yes. Edit `src/known-cookies.js` and add entries to the appropriate section (EXACT, PREFIX, or DOMAIN). Each entry needs a name/pattern, category, and provider.
+**Can I add custom cookies to the database?**
+Yes. Edit `src/known-cookies.js` and add entries to the EXACT, PREFIXES, or DOMAINS sections.
 
-**Q: How often should I run cookie audits?**
-A: At minimum: before every major site launch, after adding new third-party scripts, and quarterly as a routine check. Marketing teams frequently add new pixels and tracking — these audits catch compliance gaps before they become legal issues.
+**How often should I run audits?**
+At minimum: before every site launch, after adding third-party scripts, and quarterly. Marketing teams frequently add new tracking — audits catch compliance gaps early.
 
 ---
 
-*Built by [diShine Digital Agency](https://dishine.it). MIT License.*
+*Built by [diShine](https://dishine.it). MIT License.*
