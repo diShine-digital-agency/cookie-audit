@@ -61,4 +61,4 @@ Use clear, imperative commit messages:
 
 ## Questions?
 
-Open an issue or reach out at hello@dishine.it.
+Open an issue or reach out at kevin@dishine.it.
