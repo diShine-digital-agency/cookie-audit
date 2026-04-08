@@ -1,10 +1,17 @@
-# cookie-audit
+# cookie-audit: scan any website for cookies and GDPR/ePrivacy compliance issues.
 
-Scan any website for cookies and GDPR/ePrivacy compliance issues.
+<p align="center">
+  <img src="images/cookie_audit_02_issue_closeup.webp" alt="Cookie Audito issue closup" width="65%">
+</p>
 
 cookie-audit opens a site in headless Chromium, captures every cookie (first-party, third-party, JavaScript-set), classifies them against a built-in database of 470+ known cookies, and checks for compliance violations. The output is a graded report with actionable remediation steps.
 
 Built by [diShine](https://dishine.it). MIT Licensed.
+
+<p align="center">
+  <img src="images/cookie_audit_04_cookie_inventory_focus.webp" alt="Cookie Audit inventory" width="49%">
+  <img src="images/cookie_audit_05_export_handoff_workflow.webp" alt="Cookie Audit exort" width="49%">
+</p>
 
 ---
 
