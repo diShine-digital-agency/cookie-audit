@@ -1,16 +1,16 @@
 # cookie-audit: scan any website for cookies and GDPR/ePrivacy compliance issues.
 
 <p align="center">
-  <img src="images/cookie_audit_02_issue_closeup.webp" alt="Cookie Audito issue closup" width="65%">
+  <img src="images/cookie_audit_02_issue_closeup.webp" alt="Cookie Audit issue closeup" width="65%">
 </p>
 
-cookie-audit opens a site in headless Chromium, captures every cookie (first-party, third-party, JavaScript-set), classifies them against a built-in database of 470+ known cookies, and checks for compliance violations. The output is a graded report with actionable remediation steps.
+cookie-audit opens a site in headless Chromium, captures every cookie (first-party, third-party, JavaScript-set), classifies them against a built-in database of 478 known cookies, and checks for compliance violations. The output is a graded report with actionable remediation steps.
 
 Built by [diShine](https://dishine.it). MIT Licensed.
 
 <p align="center">
   <img src="images/cookie_audit_04_cookie_inventory_focus.webp" alt="Cookie Audit inventory" width="49%">
-  <img src="images/cookie_audit_05_export_handoff_workflow.webp" alt="Cookie Audit exort" width="49%">
+  <img src="images/cookie_audit_05_export_handoff_workflow.webp" alt="Cookie Audit export" width="49%">
 </p>
 
 ---
@@ -19,9 +19,9 @@ Built by [diShine](https://dishine.it). MIT Licensed.
 
 1. Opens the URL in headless Chromium (via Puppeteer)
 2. Captures every cookie set during page load
-3. Classifies each cookie as **necessary**, **functional**, **analytics**, **marketing**, or **unknown** using a 470+ entry database
+3. Classifies each cookie as **necessary**, **functional**, **analytics**, **marketing**, or **unknown** using a 478-entry database
 4. Runs 10 compliance checks (consent-before-tracking, Secure/HttpOnly flags, SameSite policy, excessive lifetimes, third-party exposure, and more)
-5. Outputs a graded report (terminal, JSON, CSV, or Markdown)
+5. Outputs a graded report (terminal, JSON, CSV, Markdown, or HTML)
 
 Optionally, it can click the consent banner and re-scan to compare cookies set before and after consent.
 
@@ -99,6 +99,7 @@ npx @dishine/cookie-audit example.com
 | `json` | `-f json` | Dashboards, scripts, CI/CD pipelines |
 | `csv` | `-f csv` | Spreadsheets, client handoff |
 | `markdown` | `-f markdown` | Reports, documentation, tickets |
+| `html` | `-f html` | Self-contained report for browsers, stakeholders |
 
 ---
 
@@ -106,9 +107,11 @@ npx @dishine/cookie-audit example.com
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `-f, --format` | Output format: `table`, `json`, `csv`, `markdown` | `table` |
+| `-f, --format` | Output format: `table`, `json`, `csv`, `markdown`, `html` | `table` |
 | `-o, --output` | Save report to file | stdout |
 | `-w, --wait` | Wait time (ms) for page load | `5000` |
+| `-t, --timeout` | Navigation timeout (ms) per page | `30000` |
+| `--user-agent` | Custom User-Agent string | Chromium default |
 | `-c, --consent` | Click consent banner, then re-scan | off |
 | `--no-headless` | Show the browser window (debugging) | headless |
 | `-q, --quiet` | Suppress progress messages | off |
@@ -132,7 +135,7 @@ npx @dishine/cookie-audit example.com
 
 ## Cookie database
 
-The built-in database covers 470+ cookies and domains from:
+The built-in database covers 478 cookies and domains from:
 
 - **Google** — Analytics, Ads, Tag Manager, reCAPTCHA, Optimize
 - **Meta** — Facebook Pixel, Instagram
@@ -176,7 +179,7 @@ cookie-audit urls.txt -f csv -o audit.csv
 ## Programmatic API
 
 ```javascript
-import { scan, classify, analyze, formatMarkdown } from "@dishine/cookie-audit";
+import { scan, classify, analyze, formatMarkdown, formatHTML } from "@dishine/cookie-audit";
 
 const result = await scan("https://example.com", { waitMs: 5000 });
 const classified = classify(result.cookiesBeforeConsent);
@@ -188,6 +191,8 @@ console.log(formatMarkdown(report));
 console.log(report.summary.complianceScore); // "B"
 console.log(report.issues);                  // Array of issues with remediation
 console.log(report.cookies);                 // Array of classified cookies
+
+// Available formatters: formatTable, formatJSON, formatCSV, formatMarkdown, formatHTML
 ```
 
 ---

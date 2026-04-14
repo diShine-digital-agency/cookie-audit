@@ -8,9 +8,10 @@ Thank you for considering a contribution. This document explains how to get star
 2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/cookie-audit.git`
 3. Install dependencies: `npm install`
 4. Make your changes
-5. Test locally: `node bin/cli.js example.com`
-6. Commit and push
-7. Open a pull request
+5. Run the test suite: `npm test`
+6. Test locally: `node bin/cli.js example.com`
+7. Commit and push
+8. Open a pull request
 
 ## What to contribute
 
@@ -36,6 +37,16 @@ If you find a bug, open an issue first. If you have a fix, include it in a pull 
 
 For new features, open an issue to discuss the idea before writing code. This helps avoid duplicate work and ensures the feature fits the project direction.
 
+## Testing
+
+Run the test suite before submitting:
+
+```bash
+npm test
+```
+
+The test suite (84 tests) covers the classifier, analyzer, all five reporter formats, the known-cookies database, and the public API exports. No test framework is needed — tests run on plain Node.js.
+
 ## Code style
 
 - ES6 modules (`import`/`export`)
@@ -57,6 +68,7 @@ Use clear, imperative commit messages:
 - One logical change per PR
 - Update the cookie count in README.md and GUIDE.md if you add database entries
 - Add a changelog entry under `[Unreleased]` in CHANGELOG.md
+- Run `npm test` and ensure all tests pass
 - Test your changes locally before submitting
 
 ## Questions?
