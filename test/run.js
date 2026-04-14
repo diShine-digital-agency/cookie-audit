@@ -306,11 +306,16 @@ suite("reporter — formatHTML (XSS safety)");
 
 const xssCookies = [
   { ...makeCookie({ name: '<script>alert(1)</script>' }), category: "unknown", provider: null, match: null },
+  { ...makeCookie({ name: '<img onerror=alert(1)>' }), category: "unknown", provider: null, match: null },
+  { ...makeCookie({ name: "test'quote" }), category: "unknown", provider: null, match: null },
 ];
 const xssReport = analyze(makeScanResult(), xssCookies);
 const xssHtml = formatHTML(xssReport);
 assert(!xssHtml.includes("<script>alert(1)</script>"), "HTML escapes script tags");
 assert(xssHtml.includes("&lt;script&gt;"), "script tag is escaped");
+assert(!xssHtml.includes("<img onerror"), "HTML escapes event handlers");
+assert(xssHtml.includes("&lt;img onerror"), "img tag is escaped");
+assert(!xssHtml.includes("test'quote") || xssHtml.includes("test&#39;quote"), "single quotes escaped");
 
 suite("reporter — formatHTML (no third-party)");
 

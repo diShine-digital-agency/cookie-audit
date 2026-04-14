@@ -339,7 +339,7 @@ export function formatHTML(report) {
       lines.push(`<p>${h(issue.detail)}</p>`);
       const shown = issue.cookies.slice(0, 10);
       const extra = issue.cookies.length > 10 ? ` (+${issue.cookies.length - 10} more)` : "";
-      lines.push(`<p><strong>Cookies:</strong> ${h(shown.join(", "))}${h(extra)}</p>`);
+      lines.push(`<p><strong>Cookies:</strong> ${shown.map(h).join(", ")}${h(extra)}</p>`);
       lines.push(`<p class="fix"><strong>Fix:</strong> ${h(issue.remediation)}</p>`);
       lines.push("</div>");
     }
@@ -416,11 +416,13 @@ function mdEscape(str) {
 }
 
 function htmlEscape(str) {
-  return str
+  if (str == null) return "";
+  return String(str)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function formatSeverity(sev) {
