@@ -255,6 +255,135 @@ export function formatMarkdown(report) {
   return lines.join("\n");
 }
 
+// ── HTML ───────────────────────────────────────────────────────────────
+export function formatHTML(report) {
+  const { summary, issues, cookies } = report;
+  const h = htmlEscape;
+
+  const severityColor = { critical: "#dc2626", high: "#ea580c", medium: "#ca8a04", low: "#6b7280" };
+  const gradeColor = { A: "#16a34a", "B+": "#22c55e", B: "#3b82f6", C: "#eab308", D: "#ef4444", F: "#dc2626" };
+  const catColor = { necessary: "#16a34a", functional: "#3b82f6", analytics: "#06b6d4", marketing: "#a855f7", unknown: "#eab308" };
+
+  const lines = [];
+  lines.push("<!DOCTYPE html>");
+  lines.push('<html lang="en">');
+  lines.push("<head>");
+  lines.push('<meta charset="UTF-8">');
+  lines.push('<meta name="viewport" content="width=device-width, initial-scale=1.0">');
+  lines.push(`<title>Cookie Audit — ${h(summary.url)}</title>`);
+  lines.push("<style>");
+  lines.push(`
+    :root { --bg: #0f172a; --card: #1e293b; --border: #334155; --text: #e2e8f0; --muted: #94a3b8; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; max-width: 1200px; margin: 0 auto; line-height: 1.6; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+    h2 { font-size: 1.2rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+    .meta { color: var(--muted); font-size: 0.85rem; margin-bottom: 1.5rem; }
+    .grade { display: inline-block; font-size: 2rem; font-weight: 700; padding: 0.25rem 0.75rem; border-radius: 0.5rem; margin: 0.5rem 0 1rem; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; text-align: center; }
+    .card .num { font-size: 1.5rem; font-weight: 700; }
+    .card .label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .issue { background: var(--card); border-left: 4px solid; border-radius: 0.25rem; padding: 1rem; margin-bottom: 0.75rem; }
+    .issue .sev { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    .issue h3 { font-size: 1rem; margin: 0.25rem 0 0.5rem; }
+    .issue p { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.5rem; }
+    .issue .fix { font-size: 0.85rem; color: #38bdf8; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-bottom: 1rem; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+    th { background: var(--card); font-weight: 600; position: sticky; top: 0; }
+    tr:hover td { background: rgba(255,255,255,0.03); }
+    .tag { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+    .y { color: #22c55e; } .n { color: #ef4444; }
+    footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.75rem; color: var(--muted); }
+    footer a { color: #38bdf8; text-decoration: none; }
+  `);
+  lines.push("</style>");
+  lines.push("</head>");
+  lines.push("<body>");
+
+  // Header
+  lines.push("<h1>Cookie Audit Report</h1>");
+  lines.push(`<p class="meta">${h(summary.url)} — ${h(formatDate(summary.scannedAt))}${summary.pageTitle ? " — " + h(summary.pageTitle) : ""}</p>`);
+
+  // Grade
+  const gc = gradeColor[summary.complianceScore] || "#ef4444";
+  lines.push(`<div class="grade" style="background:${gc};color:#fff">${h(summary.complianceScore)}</div>`);
+
+  // Summary cards
+  lines.push('<div class="cards">');
+  lines.push(`<div class="card"><div class="num">${summary.totalCookies}</div><div class="label">Total Cookies</div></div>`);
+  lines.push(`<div class="card"><div class="num">${summary.firstParty}</div><div class="label">First-Party</div></div>`);
+  lines.push(`<div class="card"><div class="num">${summary.thirdParty}</div><div class="label">Third-Party</div></div>`);
+  for (const [cat, count] of Object.entries(summary.categories)) {
+    const cc = catColor[cat] || "#6b7280";
+    lines.push(`<div class="card"><div class="num" style="color:${cc}">${count}</div><div class="label">${h(cat)}</div></div>`);
+  }
+  lines.push("</div>");
+
+  // Consent
+  if (summary.consentMechanism) {
+    lines.push(`<p>Consent mechanism: <strong>${h(summary.consentMechanism.join(", "))}</strong></p>`);
+  } else {
+    lines.push('<p>Consent mechanism: <strong style="color:#ef4444">Not detected</strong></p>');
+  }
+
+  // Issues
+  if (issues.length > 0) {
+    lines.push("<h2>Issues</h2>");
+    for (const issue of issues) {
+      const sc = severityColor[issue.severity] || "#6b7280";
+      lines.push(`<div class="issue" style="border-color:${sc}">`);
+      lines.push(`<span class="sev" style="color:${sc}">${h(issue.severity)}</span>`);
+      lines.push(`<h3>${h(issue.title)}</h3>`);
+      lines.push(`<p>${h(issue.detail)}</p>`);
+      const shown = issue.cookies.slice(0, 10);
+      const extra = issue.cookies.length > 10 ? ` (+${issue.cookies.length - 10} more)` : "";
+      lines.push(`<p><strong>Cookies:</strong> ${h(shown.join(", "))}${h(extra)}</p>`);
+      lines.push(`<p class="fix"><strong>Fix:</strong> ${h(issue.remediation)}</p>`);
+      lines.push("</div>");
+    }
+  }
+
+  // Cookie inventory table
+  lines.push("<h2>Cookie Inventory</h2>");
+  lines.push("<table>");
+  lines.push("<thead><tr><th>Name</th><th>Category</th><th>Provider</th><th>Party</th><th>Secure</th><th>HttpOnly</th><th>SameSite</th><th>Days</th></tr></thead>");
+  lines.push("<tbody>");
+  for (const cookie of cookies) {
+    const cc = catColor[cookie.category] || "#6b7280";
+    lines.push("<tr>");
+    lines.push(`<td>${h(cookie.name)}</td>`);
+    lines.push(`<td><span class="tag" style="background:${cc}22;color:${cc}">${h(cookie.category)}</span></td>`);
+    lines.push(`<td>${h(cookie.provider || "-")}</td>`);
+    lines.push(`<td>${cookie.isFirstParty ? "1st" : "3rd"}</td>`);
+    lines.push(`<td class="${cookie.secure ? "y" : "n"}">${cookie.secure ? "Yes" : "No"}</td>`);
+    lines.push(`<td class="${cookie.httpOnly ? "y" : "n"}">${cookie.httpOnly ? "Yes" : "No"}</td>`);
+    lines.push(`<td>${h(cookie.sameSite || "-")}</td>`);
+    lines.push(`<td>${cookie.isSession ? "session" : cookie.lifetimeDays}</td>`);
+    lines.push("</tr>");
+  }
+  lines.push("</tbody>");
+  lines.push("</table>");
+
+  // Third-party domains
+  if (report.thirdPartyDomains && report.thirdPartyDomains.length > 0) {
+    lines.push(`<h2>Third-Party Domains (${report.thirdPartyDomains.length})</h2>`);
+    lines.push("<ul>");
+    for (const d of report.thirdPartyDomains) {
+      lines.push(`<li>${h(d)}</li>`);
+    }
+    lines.push("</ul>");
+  }
+
+  // Footer
+  lines.push('<footer>Generated by <a href="https://github.com/diShine-digital-agency/cookie-audit">cookie-audit</a></footer>');
+  lines.push("</body>");
+  lines.push("</html>");
+
+  return lines.join("\n");
+}
+
 // ── Utilities ──────────────────────────────────────────────────────────
 
 function formatDate(iso) {
@@ -284,6 +413,14 @@ function csvEscape(str) {
 
 function mdEscape(str) {
   return str.replace(/\|/g, "\\|");
+}
+
+function htmlEscape(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function formatSeverity(sev) {

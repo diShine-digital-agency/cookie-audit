@@ -99,6 +99,7 @@ npx @dishine/cookie-audit example.com
 | `json` | `-f json` | Dashboards, scripts, CI/CD pipelines |
 | `csv` | `-f csv` | Spreadsheets, client handoff |
 | `markdown` | `-f markdown` | Reports, documentation, tickets |
+| `html` | `-f html` | Self-contained report for browsers, stakeholders |
 
 ---
 
@@ -106,9 +107,11 @@ npx @dishine/cookie-audit example.com
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `-f, --format` | Output format: `table`, `json`, `csv`, `markdown` | `table` |
+| `-f, --format` | Output format: `table`, `json`, `csv`, `markdown`, `html` | `table` |
 | `-o, --output` | Save report to file | stdout |
 | `-w, --wait` | Wait time (ms) for page load | `5000` |
+| `-t, --timeout` | Navigation timeout (ms) per page | `30000` |
+| `--user-agent` | Custom User-Agent string | Chromium default |
 | `-c, --consent` | Click consent banner, then re-scan | off |
 | `--no-headless` | Show the browser window (debugging) | headless |
 | `-q, --quiet` | Suppress progress messages | off |

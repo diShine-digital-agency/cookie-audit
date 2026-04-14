@@ -5,7 +5,7 @@ import { resolve } from "path";
 import { scan, scanMultiple } from "../src/scanner.js";
 import { classify } from "../src/classifier.js";
 import { analyze } from "../src/analyzer.js";
-import { formatTable, formatJSON, formatCSV, formatMarkdown } from "../src/reporter.js";
+import { formatTable, formatJSON, formatCSV, formatMarkdown, formatHTML } from "../src/reporter.js";
 
 // ── Argument parsing (zero dependencies) ───────────────────────────────
 const args = process.argv.slice(2);
@@ -26,14 +26,16 @@ const flags = {
   format: getFlag(["-f", "--format"]) || "table",
   output: getFlag(["-o", "--output"]),
   wait: parseInt(getFlag(["-w", "--wait"]) || "5000", 10),
+  timeout: parseInt(getFlag(["-t", "--timeout"]) || "30000", 10),
+  userAgent: getFlag(["--user-agent"]),
   consent: args.includes("-c") || args.includes("--consent"),
   noHeadless: args.includes("--no-headless"),
   quiet: args.includes("-q") || args.includes("--quiet"),
 };
 
 // Parse URLs (positional args that are not flags)
-const flagsWithValues = new Set(["-f", "--format", "-o", "--output", "-w", "--wait"]);
-const allFlags = new Set(["-f", "--format", "-o", "--output", "-w", "--wait", "-c", "--consent", "--no-headless", "-q", "--quiet", "-h", "--help", "-v", "--version"]);
+const flagsWithValues = new Set(["-f", "--format", "-o", "--output", "-w", "--wait", "-t", "--timeout", "--user-agent"]);
+const allFlags = new Set(["-f", "--format", "-o", "--output", "-w", "--wait", "-t", "--timeout", "--user-agent", "-c", "--consent", "--no-headless", "-q", "--quiet", "-h", "--help", "-v", "--version"]);
 
 let urls = [];
 for (let i = 0; i < args.length; i++) {
@@ -66,7 +68,7 @@ if (urls.length === 0) {
 }
 
 // Validate format
-const validFormats = ["table", "json", "csv", "markdown", "md"];
+const validFormats = ["table", "json", "csv", "markdown", "md", "html"];
 if (!validFormats.includes(flags.format)) {
   console.error(`Error: Invalid format "${flags.format}". Valid options: ${validFormats.join(", ")}\n`);
   process.exit(1);
@@ -86,6 +88,8 @@ async function main() {
     waitMs: flags.wait,
     headless: !flags.noHeadless,
     clickConsent: flags.consent,
+    timeout: flags.timeout,
+    userAgent: flags.userAgent,
   };
 
   let allReports = [];
@@ -178,6 +182,7 @@ function formatReport(report, format) {
     case "json": return formatJSON(report);
     case "csv": return formatCSV(report);
     case "markdown": return formatMarkdown(report);
+    case "html": return formatHTML(report);
     default: return formatTable(report);
   }
 }
@@ -210,9 +215,11 @@ function printHelp() {
     <file>        Text file with one URL per line (for batch scanning)
 
   OPTIONS
-    -f, --format <type>   Output format: table, json, csv, markdown  [default: table]
+    -f, --format <type>   Output format: table, json, csv, markdown, html  [default: table]
     -o, --output <file>   Save report to file (auto-strips ANSI colors)
     -w, --wait <ms>       Wait time for page to fully load             [default: 5000]
+    -t, --timeout <ms>    Navigation timeout per page                  [default: 30000]
+    --user-agent <str>    Custom User-Agent string
     -c, --consent         Attempt to click the consent banner, then re-scan
     --no-headless         Run browser in visible mode (for debugging)
     -q, --quiet           Suppress progress messages

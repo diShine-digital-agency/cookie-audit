@@ -12,7 +12,7 @@
 
 import { classify } from "../src/classifier.js";
 import { analyze } from "../src/analyzer.js";
-import { formatTable, formatJSON, formatCSV, formatMarkdown } from "../src/reporter.js";
+import { formatTable, formatJSON, formatCSV, formatMarkdown, formatHTML } from "../src/reporter.js";
 import { EXACT, PREFIXES, DOMAINS } from "../src/known-cookies.js";
 
 let passed = 0;
@@ -292,6 +292,31 @@ suite("reporter — formatCSV (empty)");
 const emptyCSV = formatCSV(zeroReport);
 assert(emptyCSV.split("\n").length === 1, "CSV: header only when no cookies");
 
+suite("reporter — formatHTML");
+
+const htmlOutput = formatHTML(report);
+assert(typeof htmlOutput === "string", "returns string");
+assert(htmlOutput.includes("<!DOCTYPE html>"), "has doctype");
+assert(htmlOutput.includes("Cookie Audit Report"), "has title");
+assert(htmlOutput.includes("example.com"), "has URL");
+assert(htmlOutput.includes("Issues"), "has issues section");
+assert(htmlOutput.includes("Cookie Inventory"), "has inventory");
+
+suite("reporter — formatHTML (XSS safety)");
+
+const xssCookies = [
+  { ...makeCookie({ name: '<script>alert(1)</script>' }), category: "unknown", provider: null, match: null },
+];
+const xssReport = analyze(makeScanResult(), xssCookies);
+const xssHtml = formatHTML(xssReport);
+assert(!xssHtml.includes("<script>alert(1)</script>"), "HTML escapes script tags");
+assert(xssHtml.includes("&lt;script&gt;"), "script tag is escaped");
+
+suite("reporter — formatHTML (no third-party)");
+
+const noTpHtml = formatHTML({ ...report, thirdPartyDomains: [] });
+assert(!noTpHtml.includes("Third-Party Domains"), "skips 3rd-party when empty");
+
 // ════════════════════════════════════════════════════════════════════════
 //  PUBLIC API EXPORTS
 // ════════════════════════════════════════════════════════════════════════
@@ -307,6 +332,7 @@ assert(typeof api.formatTable === "function", "formatTable exported");
 assert(typeof api.formatJSON === "function", "formatJSON exported");
 assert(typeof api.formatCSV === "function", "formatCSV exported");
 assert(typeof api.formatMarkdown === "function", "formatMarkdown exported");
+assert(typeof api.formatHTML === "function", "formatHTML exported");
 
 // ════════════════════════════════════════════════════════════════════════
 //  RESULTS
