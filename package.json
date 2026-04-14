@@ -1,6 +1,6 @@
 {
   "name": "@dishine/cookie-audit",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Scan any website, get a categorized cookie inventory with GDPR compliance flags",
   "type": "module",
   "bin": {

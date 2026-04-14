@@ -33,5 +33,6 @@ Security concerns most relevant to this project:
 
 | Version | Supported |
 |---------|-----------|
+| 1.2.x   | Yes       |
 | 1.1.x   | Yes       |
 | < 1.1   | No        |

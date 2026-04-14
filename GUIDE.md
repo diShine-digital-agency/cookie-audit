@@ -77,7 +77,7 @@ The tool will:
 1. Open the website in headless Chromium
 2. Wait for the page to load (5 seconds by default)
 3. Capture every cookie
-4. Classify each cookie using a 470+ entry database
+4. Classify each cookie using a 478-entry database
 5. Run compliance checks
 6. Print the report
 
@@ -184,6 +184,9 @@ cookie-audit example.com -f json -o audit.json
 
 # CSV (spreadsheets)
 cookie-audit example.com -f csv -o cookies.csv
+
+# HTML (self-contained, shareable)
+cookie-audit example.com -f html -o report.html
 ```
 
 | Format | Best for |
@@ -192,6 +195,7 @@ cookie-audit example.com -f csv -o cookies.csv
 | **markdown** | Client reports, documentation, Notion, GitHub |
 | **json** | Dashboards, scripts, jq |
 | **csv** | Excel, Google Sheets |
+| **html** | Shareable self-contained report for browsers, stakeholders |
 
 ---
 
@@ -248,9 +252,11 @@ Lines starting with `#` are comments.
 
 | Flag | Long form | Description | Default |
 |------|-----------|-------------|---------|
-| `-f` | `--format` | Output format: `table`, `json`, `csv`, `markdown` | `table` |
+| `-f` | `--format` | Output format: `table`, `json`, `csv`, `markdown`, `html` | `table` |
 | `-o` | `--output` | Save to file | stdout |
 | `-w` | `--wait` | Page load wait time (ms) | `5000` |
+| `-t` | `--timeout` | Navigation timeout per page (ms) | `30000` |
+| | `--user-agent` | Custom User-Agent string | Chromium default |
 | `-c` | `--consent` | Click consent banner, re-scan | Off |
 | | `--no-headless` | Show browser window | Hidden |
 | `-q` | `--quiet` | Suppress progress messages | Off |
@@ -262,7 +268,7 @@ Lines starting with `#` are comments.
 ## 9. Using in Code (Programmatic)
 
 ```javascript
-import { scan, classify, analyze, formatMarkdown } from "@dishine/cookie-audit";
+import { scan, classify, analyze, formatMarkdown, formatHTML } from "@dishine/cookie-audit";
 
 const result = await scan("https://example.com", { waitMs: 5000 });
 const classified = classify(result.cookiesBeforeConsent);
@@ -270,6 +276,10 @@ const report = analyze(result, classified);
 
 // Output as Markdown
 console.log(formatMarkdown(report));
+
+// Output as self-contained HTML
+// const fs = await import("fs");
+// fs.writeFileSync("report.html", formatHTML(report));
 
 // Access structured data
 console.log(report.summary.complianceScore); // "B"
@@ -323,10 +333,10 @@ npx puppeteer browsers install chrome
 
 ### "Navigation timeout" error
 
-The website took too long to load. Increase the wait time:
+The website took too long to load. Increase the timeout or wait time:
 
 ```bash
-cookie-audit example.com -w 15000
+cookie-audit example.com -w 15000 -t 60000
 ```
 
 ### "Execution context was destroyed" warning
@@ -369,7 +379,7 @@ Yes. It opens the site in a real Chromium browser (hidden by default). This is t
 Scanning by visiting a website is equivalent to visiting it in a regular browser. This is generally legal, but only scan sites you own or have permission to audit.
 
 **How accurate is the classification?**
-The database covers 470+ cookies from Google, Meta, LinkedIn, Microsoft, Adobe, and many other platforms. Unknown cookies are classified by heuristic. For production audits, manually review any "unknown" cookies.
+The database covers 478 cookies from Google, Meta, LinkedIn, Microsoft, Adobe, and many other platforms. Unknown cookies are classified by heuristic. For production audits, manually review any "unknown" cookies.
 
 **Does it support non-EU compliance?**
 The checks are primarily GDPR/ePrivacy, but the same principles apply to CCPA (California), LGPD (Brazil), POPIA (South Africa), and similar laws. Security flags (Secure, HttpOnly, SameSite) are universal best practices.

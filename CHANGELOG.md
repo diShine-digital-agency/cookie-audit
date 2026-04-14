@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-04-14
+
+### Added
+
+- **HTML output format** (`-f html`). Generates a self-contained, dark-themed HTML report with compliance grade badge, summary cards, issue cards, cookie inventory table, and third-party domain list. Fully styled with inline CSS — no external dependencies. XSS-safe: all user-controlled values are escaped (including null handling and single quotes).
+- **`--timeout` / `-t` flag** to set the navigation timeout per page (default 30 000 ms). Useful for slow-loading sites.
+- **`--user-agent` flag** to set a custom User-Agent string for the headless browser.
+- **Test suite** (`test/run.js`): 84 tests covering the classifier, analyzer, all five reporter formats (table, JSON, CSV, Markdown, HTML), the known-cookies database integrity, and the public API exports. Runs with plain Node.js — no test framework required. Execute with `npm test`.
+
+### Fixed
+
+- **npm vulnerability**: resolved high-severity CRLF injection in `basic-ftp` (transitive dependency via Puppeteer) by running `npm audit fix`.
+
+### Changed
+
+- Cookie database count updated from "470+" to the exact figure **478** across all documentation.
+- README.md: fixed typos in image alt texts ("Cookie Audito" → "Cookie Audit", "exort" → "export").
+- GUIDE.md: added HTML format to the options table, saving-reports section, and programmatic API example; added `--timeout` and `--user-agent` to the options table and troubleshooting section.
+- CONTRIBUTING.md: added `npm test` step to the getting-started checklist and a dedicated "Testing" section explaining the test suite.
+- SECURITY.md: added 1.2.x to the supported-versions table.
+- Programmatic API example in README.md and GUIDE.md now includes `formatHTML`.
+
 ## [1.1.0] - 2026-04-06
 
 ### Added
