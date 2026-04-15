@@ -1,4 +1,4 @@
-# 🔍 cookie-audit: scan any website for cookies and GDPR/ePrivacy compliance issues.
+# 🔍 Cookie Audit: scan any website for cookies and GDPR/ePrivacy compliance issues.
 
 <div align="center">
   
