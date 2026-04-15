@@ -15,9 +15,8 @@
   <img src="images/cookie_audit_02_issue_closeup.webp" alt="Cookie Audit issue closeup" width="100%">
 </p>
 
-<u>
   
-*cookie-audit opens a site in headless Chromium, captures every cookie (first-party, third-party, JavaScript-set), classifies them against a built-in database of 478 known cookies, and checks for compliance violations. The output is a graded report with actionable remediation steps.*
+**cookie-audit opens a site in headless Chromium, captures every cookie (first-party, third-party, JavaScript-set), classifies them against a built-in database of 478 known cookies, and checks for compliance violations. The output is a graded report with actionable remediation steps.**
 
 Built by [diShine Digital Agency](https://dishine.it). Read more on the [diShine blog](https://dishine.it/blog/cookie-audit-gdpr-compliance-scanner/).
 
