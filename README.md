@@ -1,12 +1,25 @@
-# cookie-audit: scan any website for cookies and GDPR/ePrivacy compliance issues.
+# 🔍 cookie-audit: scan any website for cookies and GDPR/ePrivacy compliance issues.
+
+<div align="center">
+  
+[![diShine Logo](https://dishine.it/favicon.ico)](https://dishine.it/)
+
+***Transform. Automate. Shine!***
+
+[![Website](https://img.shields.io/badge/Website-dishine.it-blue)](https://dishine.it/blog/cookie-audit-gdpr-compliance-scanner/)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-diShine-blue)](https://linkedin.com/company/100682596)
+[![Location](https://img.shields.io/badge/Location-Milan%2C%20Italy-green)]()
+[![License: CC0](https://img.shields.io/badge/License-CC0%201.0-lightgrey)](LICENSE)
 
 <p align="center">
-  <img src="images/cookie_audit_02_issue_closeup.webp" alt="Cookie Audit issue closeup" width="65%">
+  <img src="images/cookie_audit_02_issue_closeup.webp" alt="Cookie Audit issue closeup" width="100%">
 </p>
 
-cookie-audit opens a site in headless Chromium, captures every cookie (first-party, third-party, JavaScript-set), classifies them against a built-in database of 478 known cookies, and checks for compliance violations. The output is a graded report with actionable remediation steps.
+*cookie-audit opens a site in headless Chromium, captures every cookie (first-party, third-party, JavaScript-set), classifies them against a built-in database of 478 known cookies, and checks for compliance violations. The output is a graded report with actionable remediation steps.*
 
-Built by [diShine](https://dishine.it). MIT Licensed.
+Built by [diShine Digital Agency](https://dishine.it). Read more on the [diShine blog](https://dishine.it/blog/cookie-audit-gdpr-compliance-scanner/).
+
+</div>
 
 <p align="center">
   <img src="images/cookie_audit_04_cookie_inventory_focus.webp" alt="Cookie Audit inventory" width="49%">
