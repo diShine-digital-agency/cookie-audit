@@ -151,21 +151,21 @@ npx @dishine/cookie-audit example.com
 
 The built-in database covers 478 cookies and domains from:
 
-- **Google** — Analytics, Ads, Tag Manager, reCAPTCHA, Optimize
-- **Meta** — Facebook Pixel, Instagram
+- **Google**: Analytics, Ads, Tag Manager, reCAPTCHA, Optimize
+- **Meta**: Facebook Pixel, Instagram
 - **LinkedIn**, **Microsoft** (Bing Ads, Clarity), **TikTok**, **Twitter/X**, **Pinterest**, **Snapchat**, **Reddit**, **Quora**
-- **Adobe** — Analytics, Target, Audience Manager, Experience Cloud
+- **Adobe**: Analytics, Target, Audience Manager, Experience Cloud
 - **Salesforce** / Pardot, **Marketo**, **HubSpot**
-- **Analytics** — Hotjar, Mixpanel, Segment, Amplitude, Heap, PostHog, Pendo, FullStory, Mouseflow, Snowplow, Lucky Orange, ContentSquare, Matomo, Plausible, Fathom, Umami
-- **A/B testing** — Optimizely, VWO, AB Tasty, Kameleoon, Unbounce
-- **E-commerce** — Shopify, WooCommerce, Magento, Stripe, PayPal, Klarna
-- **Consent platforms** — Cookiebot, OneTrust, CookieYes, Complianz, Didomi, Usercentrics, iubenda, Tarteaucitron, Klaro, Borlabs Cookie, IAB TCF
-- **Chat/Support** — Intercom, Drift, Zendesk, LiveChat, Tawk.to, Crisp, Freshworks
-- **Infrastructure** — Cloudflare, Akamai, Fastly, Imperva, Sucuri
-- **Auth** — Auth0, Okta, NextAuth.js, Supabase, Vercel, Netlify
-- **Monitoring** — Sentry, New Relic, Datadog, Rollbar, Bugsnag, LogRocket
-- **Advertising** — Criteo, Taboola, Outbrain, AdRoll, TradeDoubler, Amazon Ads
-- **Asian platforms** — Baidu, Yandex Metrica
+- **Analytics**: Hotjar, Mixpanel, Segment, Amplitude, Heap, PostHog, Pendo, FullStory, Mouseflow, Snowplow, Lucky Orange, ContentSquare, Matomo, Plausible, Fathom, Umami
+- **A/B testing**: Optimizely, VWO, AB Tasty, Kameleoon, Unbounce
+- **E-commerce**: Shopify, WooCommerce, Magento, Stripe, PayPal, Klarna
+- **Consent platforms**: Cookiebot, OneTrust, CookieYes, Complianz, Didomi, Usercentrics, iubenda, Tarteaucitron, Klaro, Borlabs Cookie, IAB TCF
+- **Chat/Support**: Intercom, Drift, Zendesk, LiveChat, Tawk.to, Crisp, Freshworks
+- **Infrastructure**: Cloudflare, Akamai, Fastly, Imperva, Sucuri
+- **Auth**: Auth0, Okta, NextAuth.js, Supabase, Vercel, Netlify
+- **Monitoring**: Sentry, New Relic, Datadog, Rollbar, Bugsnag, LogRocket
+- **Advertising**: Criteo, Taboola, Outbrain, AdRoll, TradeDoubler, Amazon Ads
+- **Asian platforms**: Baidu, Yandex Metrica
 
 Cookies not in the database are classified by heuristic (name patterns, domain, lifetime).
 
