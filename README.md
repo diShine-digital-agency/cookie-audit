@@ -9,7 +9,7 @@
 [![Website](https://img.shields.io/badge/Website-dishine.it-blue)](https://dishine.it/blog/cookie-audit-gdpr-compliance-scanner/)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-diShine-blue)](https://linkedin.com/company/100682596)
 [![Location](https://img.shields.io/badge/Location-Milan%2C%20Italy-green)]()
-[![License: CC0](https://img.shields.io/badge/License-CC0%201.0-lightgrey)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
 
 <p align="center">
   <img src="images/cookie_audit_02_issue_closeup.webp" alt="Cookie Audit issue closeup" width="100%">
