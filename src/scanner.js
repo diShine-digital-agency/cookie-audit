@@ -21,7 +21,7 @@ export async function scan(url, options = {}) {
   } = options;
 
   const browser = await puppeteer.launch({
-    headless: headless ? "new" : false,
+    headless: headless ? true : false,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",

@@ -327,46 +327,98 @@ echo "Cookie compliance OK."
 
 ### "Chromium not found" or download errors
 
+Puppeteer downloads Chromium on first install. If the download failed (corporate proxy, flaky network, disk full), re-trigger it:
+
 ```bash
 npx puppeteer browsers install chrome
 ```
 
+The cache lives at `~/.cache/puppeteer` (macOS/Linux) or `%USERPROFILE%\.cache\puppeteer` (Windows). Delete it to force a clean re-install.
+
+### Apple Silicon (M1/M2/M3/M4) install failures
+
+If `npm install` fails while compiling a native dependency, make sure Command Line Tools are installed:
+
+```bash
+xcode-select --install
+```
+
+Then retry the install. Puppeteer 24 ships an arm64 Chromium build — no Rosetta required.
+
+### Behind a corporate proxy or firewall
+
+The Chromium download and every scan go out over the network. Export the standard proxy variables before installing:
+
+```bash
+export HTTPS_PROXY=http://proxy.company.com:8080
+export HTTP_PROXY=http://proxy.company.com:8080
+export NO_PROXY=localhost,127.0.0.1
+npm install -g @dishine/cookie-audit
+```
+
+If your network blocks `storage.googleapis.com` (where Puppeteer hosts the Chromium binary), ask your IT team to allow-list it, or mirror the binary internally and set `PUPPETEER_DOWNLOAD_BASE_URL`.
+
 ### "Navigation timeout" error
 
-The website took too long to load. Increase the timeout or wait time:
+The website took too long to load. Increase both the timeout and the post-load wait:
 
 ```bash
 cookie-audit example.com -w 15000 -t 60000
 ```
 
+### Scan hangs or never finishes
+
+Sites that keep a long-polling connection open (chat widgets, Server-Sent Events, WebSockets for live features) can defeat Puppeteer's `networkidle2` wait. Work around it by capping the timeout:
+
+```bash
+cookie-audit example.com -t 20000
+```
+
+### Empty cookie list on a site you know uses cookies
+
+Some sites (Cloudflare Bot Management, Akamai Bot Manager, PerimeterX) serve a challenge page to headless browsers. Signs: `cf_clearance` cookie missing, an unusually small HTML response, or a title like "Just a moment…".
+
+Workarounds (in order of preference):
+1. Pass a realistic User-Agent: `cookie-audit example.com --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"`
+2. Run non-headless so the bot detection may let you through: `cookie-audit example.com --no-headless`
+3. Scan a pre-authenticated staging environment instead.
+
 ### "Execution context was destroyed" warning
 
-The website redirected during scanning. Results are usually still valid.
+The website redirected during scanning. Results are usually still valid — check the `finalUrl` in the report header.
 
-### No cookies detected
+### No cookies detected at all
 
 Possible causes:
-- The site sets no cookies
-- The site requires interaction before setting cookies
-- The site blocks headless browsers
+- The site genuinely sets no cookies (static HTML, some privacy-first sites)
+- The site requires user interaction before setting cookies — use `-c` to click the consent banner
+- The site blocks headless browsers — see the "Empty cookie list" section above
 
-Try visible mode:
-
-```bash
-cookie-audit example.com --no-headless
-```
-
-### Permission denied on macOS
+Try visible mode to watch what happens:
 
 ```bash
-sudo npm install -g @dishine/cookie-audit
+cookie-audit example.com --no-headless -w 10000
 ```
 
-Or use npx (no global install):
+### Permission denied on global install (macOS / Linux)
+
+Prefer npx over `sudo`:
 
 ```bash
 npx @dishine/cookie-audit example.com
 ```
+
+If you really want a global install, configure npm to use a user-owned prefix instead of `sudo` — see [nodejs.org/en/learn/getting-started/how-to-install-nodejs](https://nodejs.org/en/learn/getting-started/how-to-install-nodejs).
+
+### Windows: long-path errors during install
+
+Windows has a 260-character path limit that Puppeteer's nested `node_modules` can exceed. Enable long paths once:
+
+```powershell
+New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+```
+
+Reboot, then retry the install.
 
 ---
 
@@ -375,20 +427,39 @@ npx @dishine/cookie-audit example.com
 **Does this tool visit the website?**
 Yes. It opens the site in a real Chromium browser (hidden by default). This is the only way to capture all cookies, including those set by JavaScript.
 
+**How long does a scan take?**
+Typical single-URL scan: 7–12 seconds end-to-end. About 5 seconds of that is the `--wait` period to let delayed scripts finish setting cookies. Scans with `-c` (consent interaction) add roughly 3 seconds.
+
+**How much does it cost to run?**
+Nothing. The tool runs entirely on your machine — no SaaS, no API keys, no quotas. Chromium uses 200–400 MB of RAM per scan and is released when the scan finishes.
+
 **Is it legal to scan any website?**
 Scanning by visiting a website is equivalent to visiting it in a regular browser. This is generally legal, but only scan sites you own or have permission to audit.
 
+**Does it impact the scanned site?**
+A scan produces one page load per URL, the same footprint as a visit from a real user. It does not submit forms, click internal links, or follow pagination. On a batch scan of 100 URLs you are generating 100 page views — no more.
+
 **How accurate is the classification?**
-The database covers 478 cookies from Google, Meta, LinkedIn, Microsoft, Adobe, and many other platforms. Unknown cookies are classified by heuristic. For production audits, manually review any "unknown" cookies.
+The database covers 478 cookies from Google, Meta, LinkedIn, Microsoft, Adobe, and many other platforms. Unknown cookies are classified by heuristic. For production audits, manually review any "unknown" cookies — the tool itself flags them with a `LOW` severity issue precisely so they do not slip through.
 
 **Does it support non-EU compliance?**
 The checks are primarily GDPR/ePrivacy, but the same principles apply to CCPA (California), LGPD (Brazil), POPIA (South Africa), and similar laws. Security flags (Secure, HttpOnly, SameSite) are universal best practices.
 
 **Can I add custom cookies to the database?**
-Yes. Edit `src/known-cookies.js` and add entries to the EXACT, PREFIXES, or DOMAINS sections.
+Yes. Edit `src/known-cookies.js` and add entries to the `EXACT`, `PREFIXES`, or `DOMAINS` sections. Each `EXACT` or `DOMAINS` entry needs `category`, `provider`, and `description`; prefixes need `prefix` and `category`. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 **How often should I run audits?**
-At minimum: before every site launch, after adding third-party scripts, and quarterly. Marketing teams frequently add new tracking — audits catch compliance gaps early.
+At minimum: before every site launch, after adding third-party scripts, and quarterly. Marketing teams frequently add new tracking — audits catch compliance gaps early. Wiring the tool into CI (see Section 10) is the lowest-effort way to keep the baseline from drifting.
+
+**Can I run this in CI without the Chromium download every time?**
+Yes. Cache `~/.cache/puppeteer` between CI runs. On GitHub Actions:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: ~/.cache/puppeteer
+    key: puppeteer-${{ runner.os }}
+```
 
 ---
 

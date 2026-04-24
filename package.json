@@ -1,6 +1,6 @@
 {
   "name": "@dishine/cookie-audit",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Scan any website, get a categorized cookie inventory with GDPR compliance flags",
   "type": "module",
   "bin": {
@@ -34,6 +34,6 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "puppeteer": "^23.0.0"
+    "puppeteer": "^24.15.0"
   }
 }

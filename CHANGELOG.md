@@ -1,11 +1,26 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.0] - 2026-04-14
+## [1.3.0] — 2026-04-24
+
+### Changed
+
+- **Puppeteer bumped from `^23.0.0` to `^24.15.0`.** The 23.x line was marked unsupported upstream (the install emitted `deprecated puppeteer@23.x: < 24.15.0 is no longer supported`). 24.x ships a newer bundled Chromium and up-to-date CDP bindings.
+- **Scanner — `headless` mode**: replaced the legacy `headless: "new"` flag with `headless: true`. In Puppeteer 22+, `true` is the new headless mode. Behaviour is unchanged; the old string form is no longer recommended by upstream.
+
+### Docs
+
+- **CHANGELOG**: harmonised date separators to em-dash (`—`) across all entries for consistency with the rest of the diShine open-source stack.
+- **GUIDE — Troubleshooting**: added entries for Apple Silicon (ARM) Chromium install failures, corporate proxy/firewall blocking the Chromium download, bot-detection walls (Cloudflare, Akamai) that return empty cookies, and hangs caused by `waitUntil: networkidle2` on sites with long-polling connections.
+- **GUIDE — FAQ**: added concrete numbers (typical scan duration, memory footprint, Chromium disk size).
+- **README — Requirements**: documented the Chromium cache location (`~/.cache/puppeteer` by default) so users know what to clean up or preserve.
+- **SECURITY.md**: added 1.3.x to the supported-versions table.
+
+## [1.2.0] — 2026-04-14
 
 ### Added
 
@@ -27,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SECURITY.md: added 1.2.x to the supported-versions table.
 - Programmatic API example in README.md and GUIDE.md now includes `formatHTML`.
 
-## [1.1.0] - 2026-04-06
+## [1.1.0] — 2026-04-06
 
 ### Added
 
@@ -73,7 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - GUIDE.md programmatic API example referenced non-existent `report.score` property — now correctly shows `report.summary.complianceScore`
 
-## [1.0.0] - 2026-04-04
+## [1.0.0] — 2026-04-04
 
 ### Added
 
@@ -88,3 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Programmatic API
 - CI/CD integration via exit codes
 - README.md and GUIDE.md documentation
+
+[1.3.0]: https://github.com/diShine-digital-agency/cookie-audit/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/diShine-digital-agency/cookie-audit/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/diShine-digital-agency/cookie-audit/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/diShine-digital-agency/cookie-audit/releases/tag/v1.0.0

@@ -226,7 +226,9 @@ Useful in CI/CD: `cookie-audit example.com || echo "Compliance check failed"`.
 ## Requirements
 
 - **Node.js** 18 or later
-- Chromium is downloaded automatically by Puppeteer on first install (~300 MB)
+- **Chromium** is downloaded automatically by Puppeteer on first install (~300 MB). The binary is cached in `~/.cache/puppeteer` on macOS and Linux, and in `%USERPROFILE%\.cache\puppeteer` on Windows. Delete this folder to force a re-download, or preserve it across CI runs to skip the cooldown.
+- **Disk**: ~350 MB total (Chromium + node_modules)
+- **Memory**: headless Chromium typically uses 200–400 MB of RAM per scan
 
 ---
 
