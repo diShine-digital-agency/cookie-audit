@@ -14,7 +14,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Docs
 
-- **CHANGELOG**: harmonised date separators to em-dash (`—`) across all entries for consistency with the rest of the diShine open-source stack.
 - **GUIDE — Troubleshooting**: added entries for Apple Silicon (ARM) Chromium install failures, corporate proxy/firewall blocking the Chromium download, bot-detection walls (Cloudflare, Akamai) that return empty cookies, and hangs caused by `waitUntil: networkidle2` on sites with long-polling connections.
 - **GUIDE — FAQ**: added concrete numbers (typical scan duration, memory footprint, Chromium disk size).
 - **README — Requirements**: documented the Chromium cache location (`~/.cache/puppeteer` by default) so users know what to clean up or preserve.
