@@ -11,10 +11,10 @@ import { EXACT, PREFIXES, DOMAINS } from "./known-cookies.js";
  */
 export function classify(cookies) {
   return cookies.map((cookie) => {
-    // 1. Exact name match
-    if (EXACT[cookie.name]) {
+    // 1. Exact name match (guard against prototype keys like "toString")
+    if (Object.hasOwn(EXACT, cookie.name)) {
       const m = EXACT[cookie.name];
-      return { ...cookie, category: m.category, provider: m.provider, description: m.description, match: "exact" };
+      return { ...cookie, category: m.category, provider: m.provider, description: m.description, match: "exact", maxDays: m.maxDays ?? null };
     }
 
     // 2. Prefix match
@@ -33,7 +33,7 @@ export function classify(cookies) {
           ...cookie,
           category: domainMatch.category,
           provider: domainMatch.provider,
-          description: `Third-party cookie from ${domainMatch.provider}`,
+          description: domainMatch.description || `Third-party cookie from ${domainMatch.provider}`,
           match: "domain",
         };
       }
@@ -53,14 +53,14 @@ export function classify(cookies) {
 // ── Helpers ────────────────────────────────────────────────────────────
 
 function findDomainMatch(domain) {
-  // Direct match
-  if (DOMAINS[domain]) return DOMAINS[domain];
+  // Direct match (guard against prototype keys like "toString")
+  if (Object.hasOwn(DOMAINS, domain)) return DOMAINS[domain];
 
   // Try parent domain (e.g., "pixel.facebook.com" → "facebook.com")
   const parts = domain.split(".");
   if (parts.length > 2) {
     const parent = parts.slice(-2).join(".");
-    if (DOMAINS[parent]) return DOMAINS[parent];
+    if (Object.hasOwn(DOMAINS, parent)) return DOMAINS[parent];
   }
 
   return null;

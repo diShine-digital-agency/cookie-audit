@@ -6,7 +6,12 @@
  *   - Issues grouped by severity (critical, high, medium, low)
  *   - Compliance assessment
  *   - Cookie breakdown by category
+ *   - Post-consent diff (when the scan ran with consent interaction)
  */
+
+const SEVERITIES = ["critical", "high", "medium", "low"];
+const GRADES = ["A", "B+", "B", "C", "D", "F"];
+
 export function analyze(scanResult, classifiedCookies) {
   const cookies = classifiedCookies;
   const issues = [];
@@ -19,6 +24,46 @@ export function analyze(scanResult, classifiedCookies) {
 
   const firstParty = cookies.filter((c) => c.isFirstParty);
   const thirdParty = cookies.filter((c) => !c.isFirstParty);
+
+  // ── Post-consent diff (only when a consent click was performed) ──────
+  let afterConsent = null;
+  if (scanResult.cookiesAfterConsent && scanResult.cookiesAfterConsent.length > 0) {
+    const key = (c) => `${c.name}|${c.domain}|${c.path}`;
+    const beforeKeys = new Set(scanResult.cookiesBeforeConsent.map(key));
+    const afterKeys = new Set(scanResult.cookiesAfterConsent.map(key));
+    const added = scanResult.cookiesAfterConsent.filter((c) => !beforeKeys.has(key(c)));
+    const removed = scanResult.cookiesBeforeConsent.filter((c) => !afterKeys.has(key(c)));
+    afterConsent = {
+      total: scanResult.cookiesAfterConsent.length,
+      added: added.map(cookieRef),
+      removed: removed.map(cookieRef),
+      addedCount: added.length,
+      removedCount: removed.length,
+    };
+  }
+
+  // ── Scan errors ──────────────────────────────────────────────────────
+  // A scan that failed (navigation error, timeout, ...) must never be
+  // reported as a clean "A" result.
+  const scanFailed = scanResult.errors && scanResult.errors.length > 0 && !scanResult.finalUrl;
+  const scanDegraded = scanResult.errors && scanResult.errors.length > 0 && !scanFailed;
+  if (scanFailed) {
+    issues.push({
+      severity: "critical",
+      title: "Scan failed",
+      detail: `The page could not be loaded: ${scanResult.errors.join("; ")}. No cookies were captured, so no compliance assessment could be made.`,
+      cookies: [],
+      remediation: "Verify the URL is correct and reachable. For slow sites, increase --wait and --timeout. Some sites block headless browsers — try --user-agent or --no-headless.",
+    });
+  } else if (scanDegraded) {
+    issues.push({
+      severity: "low",
+      title: "Partial scan results",
+      detail: `The scan completed but reported errors: ${scanResult.errors.join("; ")}. Results may be incomplete.`,
+      cookies: [],
+      remediation: "Re-run the scan with a longer --wait/--timeout. If the site redirects, check the finalUrl in the report header.",
+    });
+  }
 
   // ── Issue detection ──────────────────────────────────────────────────
 
@@ -47,7 +92,11 @@ export function analyze(scanResult, classifiedCookies) {
   }
 
   // 2. HIGH: Cookies missing Secure flag
-  const insecureCookies = cookies.filter((c) => !c.secure && c.category !== "necessary");
+  //    Cookies with SameSite=None are excluded — they are already covered by
+  //    the dedicated SameSite=None check below, so they aren't double-flagged.
+  const insecureCookies = cookies.filter(
+    (c) => !c.secure && c.category !== "necessary" && c.sameSite !== "None"
+  );
   if (insecureCookies.length > 0) {
     issues.push({
       severity: "high",
@@ -87,7 +136,7 @@ export function analyze(scanResult, classifiedCookies) {
     });
   }
 
-  // 5. MEDIUM: Excessive cookie lifetime
+  // 5. MEDIUM: Excessive cookie lifetime (absolute 13-month guideline)
   const longLived = cookies.filter((c) => c.lifetimeDays > 395);
   if (longLived.length > 0) {
     issues.push({
@@ -99,30 +148,56 @@ export function analyze(scanResult, classifiedCookies) {
     });
   }
 
-  // 6. MEDIUM: Third-party cookies (Chrome deprecation risk)
+  // 5b. MEDIUM: Lifetime exceeding the known per-cookie expectation
+  //     (uses maxDays from the cookie database; skipped when already covered
+  //     by the 13-month check above)
+  const exceedsExpected = cookies.filter(
+    (c) => typeof c.maxDays === "number" && c.maxDays > 0 && c.lifetimeDays > c.maxDays && c.lifetimeDays <= 395
+  );
+  if (exceedsExpected.length > 0) {
+    issues.push({
+      severity: "medium",
+      title: "Cookie lifetime exceeds expected duration",
+      detail: `${exceedsExpected.length} ${pluralize(exceedsExpected.length, "cookie")} ${pluralize(exceedsExpected.length, "has", "have")} a lifetime longer than the provider's documented expectation.`,
+      cookies: exceedsExpected.map((c) => `${c.name} (${c.lifetimeDays} days, expected ≤ ${c.maxDays})`),
+      remediation: "Reset the cookie lifetime to the provider's default. Unusually long lifetimes often indicate a custom or misconfigured integration.",
+    });
+  }
+
+  // 6. MEDIUM: Third-party cookies (cross-site tracking exposure)
   if (thirdParty.length > 0) {
+    const thirdPartyDomainCount = new Set(thirdParty.map((c) => c.domain.replace(/^\./, ""))).size;
     issues.push({
       severity: "medium",
       title: "Third-party cookies detected",
-      detail: `${thirdParty.length} third-party ${pluralize(thirdParty.length, "cookie")} from ${new Set(thirdParty.map((c) => c.domain.replace(/^\./, ""))).size} ${pluralize(new Set(thirdParty.map((c) => c.domain.replace(/^\./, ""))).size, "domain")}. Third-party cookies face increasing restrictions across browsers.`,
+      detail: `${thirdParty.length} third-party ${pluralize(thirdParty.length, "cookie")} from ${thirdPartyDomainCount} ${pluralize(thirdPartyDomainCount, "domain")}. Third-party cookies face increasing restrictions across browsers.`,
       cookies: thirdParty.map((c) => `${c.name} (${c.domain})`),
       remediation: "Migrate to first-party tracking where possible (server-side tagging, first-party data strategies). Review which third-party cookies are essential for your business.",
     });
   }
 
   // 7. MEDIUM: Missing SameSite attribute
-  const noSameSite = cookies.filter(
-    (c) => !c.sameSite || c.sameSite === "None"
-  );
-  // Only flag first-party cookies that should have SameSite set
-  const firstPartyNoSameSite = noSameSite.filter((c) => c.isFirstParty);
-  if (firstPartyNoSameSite.length > 0) {
+  //    Unset SameSite (CSRF exposure) and explicit SameSite=None (intentional
+  //    cross-site sending) are different situations — report them separately.
+  const sameSiteUnset = cookies.filter((c) => c.isFirstParty && !c.sameSite);
+  if (sameSiteUnset.length > 0) {
     issues.push({
       severity: "medium",
-      title: "First-party cookies without SameSite restriction",
-      detail: `${firstPartyNoSameSite.length} first-party ${pluralize(firstPartyNoSameSite.length, "cookie")} with SameSite=None or unset. This exposes them to cross-site request forgery (CSRF) attacks.`,
-      cookies: firstPartyNoSameSite.map((c) => c.name),
+      title: "First-party cookies without SameSite attribute",
+      detail: `${sameSiteUnset.length} first-party ${pluralize(sameSiteUnset.length, "cookie")} without a SameSite attribute. This exposes them to cross-site request forgery (CSRF) attacks.`,
+      cookies: sameSiteUnset.map((c) => c.name),
       remediation: "Set SameSite=Lax or SameSite=Strict on first-party cookies unless cross-site sending is required.",
+    });
+  }
+
+  const sameSiteNoneFirstParty = cookies.filter((c) => c.isFirstParty && c.sameSite === "None");
+  if (sameSiteNoneFirstParty.length > 0) {
+    issues.push({
+      severity: "medium",
+      title: "First-party cookies with SameSite=None",
+      detail: `${sameSiteNoneFirstParty.length} first-party ${pluralize(sameSiteNoneFirstParty.length, "cookie")} explicitly set SameSite=None, allowing the cookie to be sent on any cross-site request.`,
+      cookies: sameSiteNoneFirstParty.map((c) => c.name),
+      remediation: "Verify that cross-site sending is actually required. If not, switch to SameSite=Lax or SameSite=Strict. SameSite=None cookies must also carry the Secure flag.",
     });
   }
 
@@ -159,7 +234,8 @@ export function analyze(scanResult, classifiedCookies) {
   const lowCount = issues.filter((i) => i.severity === "low").length;
 
   let complianceScore;
-  if (criticalCount > 0) complianceScore = "F";
+  if (scanFailed) complianceScore = "ERR";
+  else if (criticalCount > 0) complianceScore = "F";
   else if (highCount >= 3) complianceScore = "D";
   else if (highCount >= 1) complianceScore = "C";
   else if (mediumCount >= 3) complianceScore = "B";
@@ -183,7 +259,9 @@ export function analyze(scanResult, classifiedCookies) {
         unknown: categories.unknown.length,
       },
       consentMechanism: scanResult.consentMechanism,
+      consentScan: afterConsent !== null,
       complianceScore,
+      errors: scanResult.errors || [],
       issueCount: { critical: criticalCount, high: highCount, medium: mediumCount, low: lowCount },
     },
     issues: issues.sort((a, b) => severityOrder(a.severity) - severityOrder(b.severity)),
@@ -191,8 +269,39 @@ export function analyze(scanResult, classifiedCookies) {
       const catOrder = categoryOrder(a.category) - categoryOrder(b.category);
       return catOrder !== 0 ? catOrder : a.name.localeCompare(b.name);
     }),
+    afterConsent,
     thirdPartyDomains: scanResult.thirdPartyRequests,
   };
+}
+
+/**
+ * Compute an aggregate score across multiple reports (for batch scans).
+ * Returns the worst grade — one non-compliant site fails the batch.
+ */
+export function combineReports(reports) {
+  const scores = reports.map((r) => r.summary.complianceScore);
+  let overall = "A";
+  if (scores.includes("ERR")) overall = "ERR";
+  else {
+    overall = scores.reduce((worst, s) => (GRADES.indexOf(s) > GRADES.indexOf(worst) ? s : worst), "A");
+  }
+  const issueCount = { critical: 0, high: 0, medium: 0, low: 0 };
+  for (const r of reports) {
+    for (const sev of SEVERITIES) {
+      issueCount[sev] += r.summary.issueCount[sev] || 0;
+    }
+  }
+  return {
+    url: null,
+    complianceScore: overall,
+    totalCookies: reports.reduce((n, r) => n + r.summary.totalCookies, 0),
+    issueCount,
+    reportCount: reports.length,
+  };
+}
+
+function cookieRef(c) {
+  return `${c.name} (${c.domain})`;
 }
 
 function severityOrder(s) {

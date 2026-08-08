@@ -1,7 +1,7 @@
 /**
  * Output formatters for cookie audit reports.
  *
- * Supports: table (terminal), json, csv, markdown
+ * Supports: table (terminal), json, csv, markdown, html
  */
 
 // ── ANSI color helpers (no dependencies) ───────────────────────────────
@@ -45,12 +45,13 @@ export function formatTable(report) {
   lines.push("");
 
   // Compliance grade (large format)
-  const gradeColor = { A: c.bgGreen, "B+": c.green, B: c.blue, C: c.yellow, D: c.red, F: c.bgRed };
-  const gradeEmoji = { A: "pass", "B+": "pass", B: "info", C: "warn", D: "warn", F: "fail" };
+  const gradeColor = { A: c.bgGreen, "B+": c.green, B: c.blue, C: c.yellow, D: c.red, F: c.bgRed, ERR: c.bgRed };
+  const gradeEmoji = { A: "pass", "B+": "pass", B: "info", C: "warn", D: "warn", F: "fail", ERR: "fail" };
   const colorFn = gradeColor[summary.complianceScore] || c.red;
   const gradeStatus = gradeEmoji[summary.complianceScore] || "fail";
   const gradePrefix = gradeStatus === "pass" ? c.green("PASS") : gradeStatus === "warn" ? c.yellow("WARN") : c.red("FAIL");
-  lines.push(`  Compliance: ${colorFn(c.bold(` ${summary.complianceScore} `))}  ${gradePrefix}`);
+  const gradeLabel = summary.complianceScore === "ERR" ? "Scan result" : "Compliance";
+  lines.push(`  ${gradeLabel}: ${colorFn(c.bold(` ${summary.complianceScore} `))}  ${gradePrefix}`);
   lines.push("");
 
   // Summary box
@@ -119,7 +120,7 @@ export function formatTable(report) {
     const catColor = catColors[cookie.category] || c.gray;
     const secureMark = cookie.secure ? c.green("Y") : c.red("N");
     const httpOnlyMark = cookie.httpOnly ? c.green("Y") : (cookie.category === "necessary" ? c.red("N") : c.dim("-"));
-    const sameSiteMark = cookie.sameSite === "Strict" ? c.green("Strict") : cookie.sameSite === "Lax" ? c.blue("Lax") : c.yellow("None");
+    const sameSiteMark = cookie.sameSite === "Strict" ? c.green("Strict") : cookie.sameSite === "Lax" ? c.blue("Lax") : cookie.sameSite === "None" ? c.yellow("None") : c.dim("-");
     const days = cookie.isSession ? c.dim("sess") : String(cookie.lifetimeDays);
     const party = cookie.isFirstParty ? "1st" : c.dim("3rd");
 
@@ -128,6 +129,18 @@ export function formatTable(report) {
     );
   }
   lines.push("");
+
+  // Post-consent diff (when scanned with -c)
+  if (report.afterConsent) {
+    lines.push(c.dim(`  ${BOX.horizontal.repeat(60)}`));
+    lines.push(c.bold("  After Consent"));
+    lines.push("");
+    lines.push(`  ${report.afterConsent.total} cookies after accepting consent (${c.green("+" + report.afterConsent.addedCount + " added")}, ${c.yellow("-" + report.afterConsent.removedCount + " removed")})`);
+    if (report.afterConsent.added.length > 0) {
+      lines.push(c.dim(`  Added: ${report.afterConsent.added.slice(0, 8).join(", ")}${report.afterConsent.added.length > 8 ? ` +${report.afterConsent.added.length - 8} more` : ""}`));
+    }
+    lines.push("");
+  }
 
   // Third-party domains
   if (report.thirdPartyDomains && report.thirdPartyDomains.length > 0) {
@@ -191,7 +204,11 @@ export function formatMarkdown(report) {
   lines.push(`**URL:** ${summary.url}  `);
   lines.push(`**Scanned:** ${formatDate(summary.scannedAt)}  `);
   if (summary.pageTitle) lines.push(`**Page:** ${summary.pageTitle}  `);
-  lines.push(`**Compliance Score:** ${summary.complianceScore}  `);
+  if (summary.complianceScore === "ERR") {
+    lines.push(`**Scan:** FAILED — no compliance assessment could be made  `);
+  } else {
+    lines.push(`**Compliance Score:** ${summary.complianceScore}  `);
+  }
   lines.push("");
 
   // Summary
@@ -215,7 +232,6 @@ export function formatMarkdown(report) {
     lines.push("## Issues");
     lines.push("");
     for (const issue of issues) {
-      const icon = { critical: "!!!", high: "!!", medium: "!", low: "~" }[issue.severity] || "?";
       lines.push(`### [${issue.severity.toUpperCase()}] ${issue.title}`);
       lines.push("");
       lines.push(issue.detail);
@@ -239,8 +255,28 @@ export function formatMarkdown(report) {
   }
   lines.push("");
 
+  // Post-consent diff (when scanned with -c)
+  if (report.afterConsent) {
+    lines.push("## After Consent");
+    lines.push("");
+    lines.push(`${report.afterConsent.total} cookies after accepting consent (**+${report.afterConsent.addedCount}** added, **-${report.afterConsent.removedCount}** removed).`);
+    lines.push("");
+    if (report.afterConsent.added.length > 0) {
+      lines.push("**Added after consent:**");
+      lines.push("");
+      for (const a of report.afterConsent.added) lines.push(`- ${a}`);
+      lines.push("");
+    }
+    if (report.afterConsent.removed.length > 0) {
+      lines.push("**Removed after consent:**");
+      lines.push("");
+      for (const r of report.afterConsent.removed) lines.push(`- ${r}`);
+      lines.push("");
+    }
+  }
+
   // Third-party domains
-  if (report.thirdPartyDomains.length > 0) {
+  if (report.thirdPartyDomains && report.thirdPartyDomains.length > 0) {
     lines.push(`## Third-Party Domains (${report.thirdPartyDomains.length})`);
     lines.push("");
     for (const d of report.thirdPartyDomains) {
@@ -261,7 +297,7 @@ export function formatHTML(report) {
   const h = htmlEscape;
 
   const severityColor = { critical: "#dc2626", high: "#ea580c", medium: "#ca8a04", low: "#6b7280" };
-  const gradeColor = { A: "#16a34a", "B+": "#22c55e", B: "#3b82f6", C: "#eab308", D: "#ef4444", F: "#dc2626" };
+  const gradeColor = { A: "#16a34a", "B+": "#22c55e", B: "#3b82f6", C: "#eab308", D: "#ef4444", F: "#dc2626", ERR: "#dc2626" };
   const catColor = { necessary: "#16a34a", functional: "#3b82f6", analytics: "#06b6d4", marketing: "#a855f7", unknown: "#eab308" };
 
   const lines = [];
@@ -308,7 +344,8 @@ export function formatHTML(report) {
 
   // Grade
   const gc = gradeColor[summary.complianceScore] || "#ef4444";
-  lines.push(`<div class="grade" style="background:${gc};color:#fff">${h(summary.complianceScore)}</div>`);
+  const gradeLabel = summary.complianceScore === "ERR" ? "Scan failed" : "Compliance";
+  lines.push(`<div class="grade" style="background:${gc};color:#fff">${h(gradeLabel)}: ${h(summary.complianceScore)}</div>`);
 
   // Summary cards
   lines.push('<div class="cards">');
@@ -365,6 +402,24 @@ export function formatHTML(report) {
   }
   lines.push("</tbody>");
   lines.push("</table>");
+
+  // Post-consent diff (when scanned with -c)
+  if (report.afterConsent) {
+    lines.push("<h2>After Consent</h2>");
+    lines.push(`<p>${report.afterConsent.total} cookies after accepting consent (<strong style="color:#22c55e">+${report.afterConsent.addedCount}</strong> added, <strong style="color:#eab308">-${report.afterConsent.removedCount}</strong> removed).</p>`);
+    if (report.afterConsent.added.length > 0) {
+      lines.push("<p><strong>Added after consent:</strong></p>");
+      lines.push("<ul>");
+      for (const a of report.afterConsent.added) lines.push(`<li>${h(a)}</li>`);
+      lines.push("</ul>");
+    }
+    if (report.afterConsent.removed.length > 0) {
+      lines.push("<p><strong>Removed after consent:</strong></p>");
+      lines.push("<ul>");
+      for (const r of report.afterConsent.removed) lines.push(`<li>${h(r)}</li>`);
+      lines.push("</ul>");
+    }
+  }
 
   // Third-party domains
   if (report.thirdPartyDomains && report.thirdPartyDomains.length > 0) {
@@ -456,7 +511,10 @@ function groupByTLD(domains) {
   for (const d of domains) {
     const parts = d.split(".");
     const tld = parts.slice(-2).join(".");
-    if (!groups[tld]) groups[tld] = [];
+    // Object.hasOwn guards against prototype keys (e.g. a domain literally
+    // named "constructor.io" producing tld "constructor.io" is fine, but a
+    // two-part key colliding with Object.prototype must not corrupt the map)
+    if (!Object.hasOwn(groups, tld)) groups[tld] = [];
     if (!groups[tld].includes(d)) groups[tld].push(d);
   }
   return groups;

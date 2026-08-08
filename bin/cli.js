@@ -2,9 +2,9 @@
 
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { resolve } from "path";
-import { scan, scanMultiple } from "../src/scanner.js";
+import { scan, toErrorMessage } from "../src/scanner.js";
 import { classify } from "../src/classifier.js";
-import { analyze } from "../src/analyzer.js";
+import { analyze, combineReports } from "../src/analyzer.js";
 import { formatTable, formatJSON, formatCSV, formatMarkdown, formatHTML } from "../src/reporter.js";
 
 // ── Argument parsing (zero dependencies) ───────────────────────────────
@@ -21,6 +21,12 @@ if (args.includes("-v") || args.includes("--version")) {
   process.exit(0);
 }
 
+// All progress/diagnostic output goes to stderr so that report output on
+// stdout (json, csv, markdown, html) stays clean and pipeable.
+function progress(msg) {
+  if (!flags.quiet) console.error(msg);
+}
+
 // Parse flags
 const flags = {
   format: getFlag(["-f", "--format"]) || "table",
@@ -32,6 +38,14 @@ const flags = {
   noHeadless: args.includes("--no-headless"),
   quiet: args.includes("-q") || args.includes("--quiet"),
 };
+
+// Validate numeric flags
+for (const [name, value] of [["wait", flags.wait], ["timeout", flags.timeout]]) {
+  if (!Number.isFinite(value) || value < 0) {
+    console.error(`Error: Invalid --${name} value "${getFlag([name === "wait" ? "-w" : "-t", "--" + name])}". Must be a non-negative number of milliseconds.\n`);
+    process.exit(2);
+  }
+}
 
 // Parse URLs (positional args that are not flags)
 const flagsWithValues = new Set(["-f", "--format", "-o", "--output", "-w", "--wait", "-t", "--timeout", "--user-agent"]);
@@ -54,35 +68,46 @@ for (let i = 0; i < args.length; i++) {
   }
 }
 
-// Normalize URLs
+// Normalize and validate URLs
 urls = urls.map((u) => {
+  // Reject URLs that already carry a non-HTTP scheme (ftp://, javascript:, ...)
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(u) && !/^https?:\/\//i.test(u)) {
+    return u; // left as-is so validation below rejects it
+  }
   if (!u.startsWith("http://") && !u.startsWith("https://")) {
     return `https://${u}`;
   }
   return u;
 });
 
+const invalidUrls = urls.filter((u) => !isValidHttpUrl(u));
+if (invalidUrls.length > 0) {
+  console.error(`Error: Invalid URL${invalidUrls.length > 1 ? "s" : ""}: ${invalidUrls.join(", ")}\n`);
+  process.exit(2);
+}
+
+// Deduplicate while preserving order
+urls = [...new Set(urls)];
+
 if (urls.length === 0) {
   console.error("Error: No URL provided. Run with --help for usage.\n");
-  process.exit(1);
+  process.exit(2);
 }
 
 // Validate format
 const validFormats = ["table", "json", "csv", "markdown", "md", "html"];
 if (!validFormats.includes(flags.format)) {
   console.error(`Error: Invalid format "${flags.format}". Valid options: ${validFormats.join(", ")}\n`);
-  process.exit(1);
+  process.exit(2);
 }
 if (flags.format === "md") flags.format = "markdown";
 
 // ── Main ───────────────────────────────────────────────────────────────
 async function main() {
-  if (!flags.quiet) {
-    console.log("");
-    console.log("  cookie-audit — scanning...");
-    console.log(`  ${urls.length === 1 ? urls[0] : `${urls.length} URLs`}`);
-    console.log("");
-  }
+  progress("");
+  progress("  cookie-audit — scanning...");
+  progress(`  ${urls.length === 1 ? urls[0] : `${urls.length} URLs`}`);
+  progress("");
 
   const scanOptions = {
     waitMs: flags.wait,
@@ -93,11 +118,12 @@ async function main() {
   };
 
   let allReports = [];
+  let failedScans = 0;
   const startTime = Date.now();
 
   for (const url of urls) {
-    if (!flags.quiet && urls.length > 1) {
-      console.log(`  Scanning: ${url}`);
+    if (urls.length > 1) {
+      progress(`  Scanning: ${url}`);
     }
 
     const urlStart = Date.now();
@@ -117,64 +143,102 @@ async function main() {
       const report = analyze(scanResult, classified);
       allReports.push(report);
 
-      if (!flags.quiet) {
-        const duration = ((Date.now() - urlStart) / 1000).toFixed(1);
-        const cookieCount = report.summary.totalCookies;
-        const score = report.summary.complianceScore;
-        console.log(`  Done: ${cookieCount} cookies found, score ${score} (${duration}s)`);
+      if (report.summary.complianceScore === "ERR") {
+        failedScans++;
       }
 
+      const duration = ((Date.now() - urlStart) / 1000).toFixed(1);
+      const cookieCount = report.summary.totalCookies;
+      const score = report.summary.complianceScore;
+      progress(score === "ERR"
+        ? `  Failed: ${url} could not be scanned (${duration}s)`
+        : `  Done: ${cookieCount} cookies found, score ${score} (${duration}s)`);
+
     } catch (err) {
-      console.error(`  Error scanning ${url}: ${err.message}`);
-      if (!flags.quiet) console.error(`  ${err.stack}`);
+      failedScans++;
+      console.error(`  Error scanning ${url}: ${toErrorMessage(err)}`);
     }
   }
 
   if (allReports.length === 0) {
     console.error("  No successful scans. Exiting.");
-    process.exit(1);
+    process.exit(2);
   }
 
   // 4. Format output
-  let output;
-  if (allReports.length === 1) {
-    output = formatReport(allReports[0], flags.format);
-  } else {
-    // Multiple reports: concatenate
-    output = allReports.map((r) => formatReport(r, flags.format)).join("\n\n---\n\n");
-  }
+  const output = formatOutput(allReports, flags.format);
 
   // 5. Output
   if (flags.output) {
     const outPath = resolve(flags.output);
     writeFileSync(outPath, stripAnsi(output), "utf-8");
-    if (!flags.quiet) {
-      const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log("");
-      console.log(`  Report saved to: ${outPath}`);
-      console.log(`  Total scan time: ${totalDuration}s`);
-      console.log("");
-    }
+    const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
+    progress("");
+    progress(`  Report saved to: ${outPath}`);
+    progress(`  Total scan time: ${totalDuration}s`);
+    progress("");
   } else {
     console.log(output);
-    if (!flags.quiet && urls.length > 1) {
+    if (urls.length > 1) {
       const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`  Total scan time: ${totalDuration}s`);
-      console.log("");
+      progress(`  Total scan time: ${totalDuration}s`);
+      progress("");
     }
   }
 
-  // Exit with non-zero if critical issues found
+  // Exit codes:
+  //   2 — one or more scans failed (or no report could be produced)
+  //   1 — critical compliance issues detected
+  //   0 — no critical issues
+  if (failedScans > 0) process.exit(2);
   const hasCritical = allReports.some((r) => r.summary.issueCount.critical > 0);
   process.exit(hasCritical ? 1 : 0);
 }
 
 main().catch((err) => {
-  console.error(`Fatal error: ${err.message}`);
+  console.error(`Fatal error: ${toErrorMessage(err)}`);
   process.exit(2);
 });
 
 // ── Helpers ────────────────────────────────────────────────────────────
+
+function formatOutput(reports, format) {
+  if (reports.length === 1) {
+    return formatReport(reports[0], format);
+  }
+
+  // Structured formats get a well-defined multi-report shape
+  if (format === "json") {
+    return JSON.stringify({ summary: combineReports(reports), reports }, null, 2);
+  }
+  if (format === "csv") {
+    // One CSV document with a URL column; single header row
+    const [header, ...blocks] = reports.map((r) => {
+      const [head, ...rows] = formatCSV(r).split("\n");
+      return { head, rows: rows.map((row) => `${csvEscapeCell(r.summary.url)},${row}`) };
+    });
+    const lines = [`URL,${blocks[0].head}`];
+    for (const b of blocks) lines.push(...b.rows);
+    return lines.join("\n");
+  }
+  if (format === "html") {
+    // A single valid HTML document: concatenate body sections only
+    const bodies = reports.map((r) => {
+      const html = formatHTML(r);
+      const match = html.match(/<body>([\s\S]*)<\/body>/i);
+      return match ? match[1] : html;
+    });
+    return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Cookie Audit — Batch Report</title>\n" + extractStyle(formatHTML(reports[0])) + "\n</head>\n<body>\n<h1>Cookie Audit — Batch Report</h1>\n" + bodies.join('\n<hr style="border-color:#334155;margin:2rem 0">\n') + "\n</body>\n</html>";
+  }
+
+  // table / markdown: concatenate with a separator
+  return reports.map((r) => formatReport(r, format)).join("\n\n---\n\n");
+}
+
+function extractStyle(html) {
+  const match = html.match(/<style>[\s\S]*?<\/style>/i);
+  return match ? match[0] : "";
+}
 
 function formatReport(report, format) {
   switch (format) {
@@ -195,6 +259,22 @@ function getFlag(names) {
     }
   }
   return null;
+}
+
+function isValidHttpUrl(str) {
+  try {
+    const u = new URL(str);
+    return (u.protocol === "http:" || u.protocol === "https:") && !!u.hostname;
+  } catch {
+    return false;
+  }
+}
+
+function csvEscapeCell(str) {
+  if (/[",\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
 }
 
 function stripAnsi(str) {
@@ -222,7 +302,7 @@ function printHelp() {
     --user-agent <str>    Custom User-Agent string
     -c, --consent         Attempt to click the consent banner, then re-scan
     --no-headless         Run browser in visible mode (for debugging)
-    -q, --quiet           Suppress progress messages
+    -q, --quiet           Suppress progress messages (stderr)
     -h, --help            Show this help
     -v, --version         Show version
 
@@ -236,6 +316,6 @@ function printHelp() {
   EXIT CODES
     0   No critical issues found
     1   Critical compliance issues detected
-    2   Fatal error (scan failed)
+    2   Fatal error or scan failed (network error, invalid URL, timeout)
 `);
 }

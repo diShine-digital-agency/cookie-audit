@@ -54,8 +54,10 @@ export async function scan(url, options = {}) {
 
     page.on("request", (req) => {
       try {
-        const reqHost = new URL(req.url()).hostname;
-        if (!reqHost.endsWith(targetHost) && reqHost !== targetHost) {
+        const reqHost = new URL(req.url()).hostname.replace(/^www\./, "");
+        // Exact host or a true subdomain only — avoids matching look-alike
+        // domains like "notexample.com" via a bare endsWith check.
+        if (reqHost !== targetHost && !reqHost.endsWith("." + targetHost)) {
           thirdPartyDomains.add(reqHost);
         }
       } catch { /* ignore invalid URLs */ }
@@ -72,7 +74,10 @@ export async function scan(url, options = {}) {
     // Phase 1: Cookies before consent
     const client = await page.createCDPSession();
     const { cookies: rawCookies } = await client.send("Network.getAllCookies");
-    result.cookiesBeforeConsent = normalizeCookies(rawCookies, targetHost);
+    result.cookiesBeforeConsent = normalizeCookies(
+      rawCookies.filter((c) => cookieAppliesToHost(c, targetHost)),
+      targetHost,
+    );
 
     // Detect consent mechanism
     result.consentMechanism = await detectConsentMechanism(page);
@@ -83,16 +88,19 @@ export async function scan(url, options = {}) {
       if (clicked) {
         await delay(3000); // wait for consent-gated tags to fire
         const { cookies: postConsentCookies } = await client.send("Network.getAllCookies");
-        result.cookiesAfterConsent = normalizeCookies(postConsentCookies, targetHost);
+        result.cookiesAfterConsent = normalizeCookies(
+          postConsentCookies.filter((c) => cookieAppliesToHost(c, targetHost)),
+          targetHost,
+        );
       }
     }
 
     result.thirdPartyRequests = [...thirdPartyDomains].sort();
 
   } catch (err) {
-    result.errors.push(err.message);
+    result.errors.push(toErrorMessage(err));
   } finally {
-    await browser.close();
+    await browser.close().catch(() => {});
   }
 
   return result;
@@ -108,7 +116,7 @@ export async function scanMultiple(urls, options = {}) {
       const result = await scan(url, options);
       results.push(result);
     } catch (err) {
-      results.push({ url, error: err.message });
+      results.push({ url, error: toErrorMessage(err) });
     }
   }
   return results;
@@ -116,9 +124,33 @@ export async function scanMultiple(urls, options = {}) {
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
+/**
+ * Extract a readable message from any thrown value (Error, string, object).
+ */
+export function toErrorMessage(err) {
+  if (err == null) return "Unknown error";
+  if (typeof err === "string") return err;
+  if (typeof err.message === "string" && err.message) return err.message;
+  return String(err);
+}
+
+/**
+ * Network.getAllCookies returns the browser-wide cookie store, which can
+ * contain cookies for unrelated domains. Keep only cookies whose domain
+ * covers the scanned host (the cookie's domain is the host itself, a parent
+ * domain with a leading dot, or a parent suffix).
+ */
+export function cookieAppliesToHost(cookie, targetHost) {
+  const domain = (cookie.domain || "").replace(/^\./, "").toLowerCase();
+  if (!domain) return true; // no domain info — keep it rather than drop data
+  const host = targetHost.toLowerCase();
+  return host === domain || host.endsWith("." + domain);
+}
+
 function normalizeCookies(rawCookies, targetHost) {
   return rawCookies.map((c) => {
-    const isFirstParty = c.domain.replace(/^\./, "").endsWith(targetHost);
+    const domain = (c.domain || "").replace(/^\./, "");
+    const isFirstParty = domain === targetHost || domain.endsWith("." + targetHost);
     const expiresDate = c.expires > 0 ? new Date(c.expires * 1000) : null;
     const lifetimeDays = expiresDate
       ? Math.round((expiresDate - new Date()) / (1000 * 60 * 60 * 24))
@@ -135,7 +167,9 @@ function normalizeCookies(rawCookies, targetHost) {
       lifetimeDays: Math.max(0, lifetimeDays),
       secure: c.secure,
       httpOnly: c.httpOnly,
-      sameSite: c.sameSite || "None",
+      // CDP omits sameSite when the attribute is unset — don't confuse that
+      // with an explicit SameSite=None
+      sameSite: c.sameSite || null,
       size: c.size,
       priority: c.priority || "Medium",
     };
@@ -213,15 +247,23 @@ async function attemptConsentClick(page, mechanisms) {
     'a[class*="accept" i]',
     '[data-action="accept"]',
     '[data-action="accept-all"]',
-    'button:has-text("Accept")',
-    'button:has-text("Accept All")',
-    'button:has-text("Accetta")',
-    'button:has-text("Accetta tutti")',
-    'button:has-text("Accepter")',
-    'button:has-text("Tout accepter")',
-    'button:has-text("Akzeptieren")',
-    'button:has-text("Alle akzeptieren")',
   ];
+
+  // Text-matching selectors per CMP — kept separate because page.$() only
+  // understands CSS; these are matched by textContent in page.evaluate below.
+  const acceptTextsByCmp = {
+    cookiebot: ["allow all", "allow selection", "accept all", "accept"],
+    onetrust: ["accept all cookies", "accept all", "allow all", "accept"],
+    cookieyes: ["accept all", "accept"],
+    complianz: ["accept all", "accept"],
+    quantcast: ["i accept", "accept all", "agree"],
+    didomi: ["agree and close", "accept all", "accept"],
+    axeptio: ["accept all", "accept"],
+    termly: ["accept all", "accept"],
+  };
+
+  const cmpTexts = (Array.isArray(mechanisms) ? mechanisms : [])
+    .flatMap((m) => acceptTextsByCmp[m] || []);
 
   for (const selector of acceptSelectors) {
     try {
@@ -239,30 +281,36 @@ async function attemptConsentClick(page, mechanisms) {
     } catch { /* continue to next selector */ }
   }
 
-  // Fallback: look for buttons by text content
+  // Fallback: look for buttons by text content — CMP-specific labels first,
+  // then generic multi-language accept labels
   try {
-    const clicked = await page.evaluate(() => {
-      const acceptTexts = [
-        "accept all", "accept cookies", "accept", "allow all", "allow cookies",
-        "i agree", "agree", "got it", "ok", "consent",
+    const clicked = await page.evaluate((preferredTexts) => {
+      const genericTexts = [
+        "accept all cookies", "accept all", "accept cookies", "allow all cookies",
+        "allow all", "allow cookies", "accept",
+        "i agree", "agree", "got it", "consent",
         "accetta tutti", "accetta", "accetto",
-        "accepter tout", "accepter", "tout accepter",
+        "tout accepter", "accepter tout", "accepter",
         "alle akzeptieren", "akzeptieren", "einverstanden",
-        "aceptar todo", "aceptar",
+        "aceptar todo", "aceptar todas", "aceptar",
       ];
+      const ordered = [...new Set([...(preferredTexts || []), ...genericTexts])];
       const buttons = [...document.querySelectorAll("button, a[role='button'], [role='button']")];
-      for (const btn of buttons) {
-        const text = btn.textContent.trim().toLowerCase();
-        if (acceptTexts.some((t) => text === t || text.includes(t))) {
-          const style = getComputedStyle(btn);
-          if (style.display !== "none" && style.visibility !== "hidden") {
-            btn.click();
-            return true;
-          }
-        }
+      const isVisible = (el) => {
+        const style = getComputedStyle(el);
+        return style.display !== "none" && style.visibility !== "hidden" && el.offsetParent !== null;
+      };
+      // Exact matches in priority order, then substring matches
+      for (const t of ordered) {
+        const btn = buttons.find((b) => b.textContent.trim().toLowerCase() === t);
+        if (btn && isVisible(btn)) { btn.click(); return true; }
+      }
+      for (const t of ordered) {
+        const btn = buttons.find((b) => b.textContent.trim().toLowerCase().includes(t));
+        if (btn && isVisible(btn)) { btn.click(); return true; }
       }
       return false;
-    });
+    }, cmpTexts);
     return clicked;
   } catch {
     return false;

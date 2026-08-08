@@ -11,7 +11,8 @@
  */
 
 import { classify } from "../src/classifier.js";
-import { analyze } from "../src/analyzer.js";
+import { analyze, combineReports } from "../src/analyzer.js";
+import { toErrorMessage, cookieAppliesToHost } from "../src/scanner.js";
 import { formatTable, formatJSON, formatCSV, formatMarkdown, formatHTML } from "../src/reporter.js";
 import { EXACT, PREFIXES, DOMAINS } from "../src/known-cookies.js";
 
@@ -323,6 +324,124 @@ const noTpHtml = formatHTML({ ...report, thirdPartyDomains: [] });
 assert(!noTpHtml.includes("Third-Party Domains"), "skips 3rd-party when empty");
 
 // ════════════════════════════════════════════════════════════════════════
+//  REGRESSIONS
+// ════════════════════════════════════════════════════════════════════════
+
+suite("regression — failed scan gets ERR grade, not A");
+
+const failedScan = makeScanResult({
+  errors: ["net::ERR_NAME_NOT_RESOLVED at https://nope.invalid"],
+  finalUrl: null,
+});
+const failedReport = analyze(failedScan, []);
+assert(failedReport.summary.complianceScore === "ERR", "failed scan → ERR grade");
+assert(failedReport.summary.issueCount.critical === 1, "failed scan → 1 critical issue");
+assert(failedReport.issues[0].title === "Scan failed", "failed scan → 'Scan failed' issue");
+
+const failedTable = formatTable(failedReport);
+assert(failedTable.includes("ERR"), "table renders ERR grade");
+const failedMd = formatMarkdown(failedReport);
+assert(failedMd.includes("FAILED"), "markdown renders scan failure");
+const failedHtml = formatHTML(failedReport);
+assert(failedHtml.includes("ERR"), "HTML renders ERR grade");
+
+suite("regression — SameSite=None cookies not double-flagged");
+
+const ssnCookies = [
+  { ...makeCookie({ name: "ssn", sameSite: "None", secure: false }), category: "functional", provider: null, match: "heuristic" },
+];
+const ssnReport = analyze(makeScanResult(), ssnCookies);
+const secureIssue = ssnReport.issues.find((i) => i.title === "Cookies missing Secure flag");
+assert(secureIssue === undefined, "SameSite=None cookie excluded from generic Secure-flag issue");
+const ssnIssue = ssnReport.issues.find((i) => i.title === "SameSite=None cookies without Secure flag");
+assert(ssnIssue !== undefined, "SameSite=None without Secure still flagged");
+
+suite("regression — unset SameSite distinguished from SameSite=None");
+
+const unsetCookie = [
+  { ...makeCookie({ name: "nosamesite", sameSite: null }), category: "necessary", provider: null, match: "heuristic" },
+];
+const unsetReport = analyze(makeScanResult(), unsetCookie);
+const unsetIssue = unsetReport.issues.find((i) => i.title === "First-party cookies without SameSite attribute");
+assert(unsetIssue !== undefined, "unset SameSite flagged as missing attribute");
+const noneIssue = unsetReport.issues.find((i) => i.title === "First-party cookies with SameSite=None");
+assert(noneIssue === undefined, "unset SameSite not reported as SameSite=None");
+const noneTable = formatTable(unsetReport);
+assert(noneTable.includes("nosamesite"), "table renders cookie with null SameSite");
+
+suite("regression — maxDays from cookie database is enforced");
+
+const maxDaysCookies = [
+  { ...makeCookie({ name: "_gid", lifetimeDays: 30 }), category: "analytics", provider: "Google Analytics", match: "exact", maxDays: 1 },
+];
+const maxDaysReport = analyze(makeScanResult({ consentMechanism: ["cookiebot"] }), maxDaysCookies);
+const maxDaysIssue = maxDaysReport.issues.find((i) => i.title === "Cookie lifetime exceeds expected duration");
+assert(maxDaysIssue !== undefined, "_gid with 30-day lifetime flagged (expected ≤ 1)");
+assert(maxDaysIssue.cookies[0].includes("expected"), "issue lists expected maxDays");
+
+const withinMaxCookies = [
+  { ...makeCookie({ name: "_ga", lifetimeDays: 730 }), category: "analytics", provider: "Google Analytics", match: "exact", maxDays: 730 },
+];
+const withinMaxReport = analyze(makeScanResult({ consentMechanism: ["cookiebot"] }), withinMaxCookies);
+assert(!withinMaxReport.issues.some((i) => i.title === "Cookie lifetime exceeds expected duration"), "_ga at 730 days not flagged (within maxDays)");
+
+suite("regression — after-consent diff is reported");
+
+const consentScan = makeScanResult({
+  consentMechanism: ["custom"],
+  cookiesBeforeConsent: [makeCookie({ name: "sess_id" })],
+  cookiesAfterConsent: [makeCookie({ name: "sess_id" }), makeCookie({ name: "_ga" }), makeCookie({ name: "_fbp" })],
+});
+const consentReport = analyze(consentScan, classify(consentScan.cookiesBeforeConsent));
+assert(consentReport.afterConsent !== null, "afterConsent present when post-consent cookies exist");
+assert(consentReport.afterConsent.addedCount === 2, "2 cookies added after consent");
+assert(consentReport.summary.consentScan === true, "summary.consentScan = true");
+const consentMd = formatMarkdown(consentReport);
+assert(consentMd.includes("## After Consent"), "markdown has After Consent section");
+const consentHtml = formatHTML(consentReport);
+assert(consentHtml.includes("After Consent"), "HTML has After Consent section");
+const consentTable = formatTable(consentReport);
+assert(consentTable.includes("After Consent"), "table has After Consent section");
+
+const noConsentReport = analyze(makeScanResult(), classify([makeCookie({ name: "x", secure: true })]));
+assert(noConsentReport.afterConsent === null, "afterConsent is null without consent click");
+assert(noConsentReport.summary.consentScan === false, "summary.consentScan = false without click");
+
+suite("regression — prototype-key cookie names/domains");
+
+const protoResult = classify([makeCookie({ name: "toString", domain: ".constructor.io", isFirstParty: false })]);
+assert(protoResult[0].category !== undefined, "cookie named 'toString' doesn't crash");
+assert(protoResult[0].match !== "exact" || EXACT.toString, "'toString' not false-matched via prototype");
+
+suite("regression — scanner helpers");
+
+assert(cookieAppliesToHost({ domain: ".example.com" }, "example.com"), ".example.com cookie applies to example.com");
+assert(cookieAppliesToHost({ domain: "example.com" }, "example.com"), "example.com cookie applies");
+assert(cookieAppliesToHost({ domain: ".com" }, "example.com") === true, "suffix parent kept (host ends with .com)");
+assert(!cookieAppliesToHost({ domain: ".other.com" }, "example.com"), "unrelated domain filtered out");
+assert(!cookieAppliesToHost({ domain: ".notexample.com" }, "example.com"), "look-alike domain filtered out");
+assert(cookieAppliesToHost({ domain: "" }, "example.com"), "empty domain kept (no data loss)");
+
+assert(toErrorMessage(new Error("boom")) === "boom", "toErrorMessage: Error");
+assert(toErrorMessage("str") === "str", "toErrorMessage: string");
+assert(toErrorMessage(null) === "Unknown error", "toErrorMessage: null");
+assert(toErrorMessage(42) === "42", "toErrorMessage: number");
+assert(toErrorMessage({}) === "[object Object]", "toErrorMessage: plain object");
+
+suite("regression — combineReports");
+
+const combined = combineReports([report, cleanReport]);
+assert(combined.complianceScore === "F", "aggregate takes worst grade (F beats A)");
+assert(combined.reportCount === 2, "reportCount = 2");
+assert(combined.issueCount.critical >= 1, "aggregate sums critical issues");
+
+const combinedErr = combineReports([cleanReport, failedReport]);
+assert(combinedErr.complianceScore === "ERR", "ERR wins over A");
+
+const combinedClean = combineReports([cleanReport]);
+assert(combinedClean.complianceScore === "A", "all-clean batch → A");
+
+// ════════════════════════════════════════════════════════════════════════
 //  PUBLIC API EXPORTS
 // ════════════════════════════════════════════════════════════════════════
 
@@ -331,8 +450,10 @@ suite("public API exports");
 const api = await import("../src/index.js");
 assert(typeof api.scan === "function", "scan exported");
 assert(typeof api.scanMultiple === "function", "scanMultiple exported");
+assert(typeof api.toErrorMessage === "function", "toErrorMessage exported");
 assert(typeof api.classify === "function", "classify exported");
 assert(typeof api.analyze === "function", "analyze exported");
+assert(typeof api.combineReports === "function", "combineReports exported");
 assert(typeof api.formatTable === "function", "formatTable exported");
 assert(typeof api.formatJSON === "function", "formatJSON exported");
 assert(typeof api.formatCSV === "function", "formatCSV exported");
